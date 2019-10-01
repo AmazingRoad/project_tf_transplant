@@ -77,6 +77,7 @@ from core.training import Trainer, Backup, metrics
 from core.training import SWA
 from core.modules import DiceLoss, CombinedLoss
 from core.models.unet import UNet
+from core.models.ffn import FFN
 
 
 if not args.disable_cuda and torch.cuda.is_available():
@@ -87,16 +88,17 @@ logger.info(f'Running on device: {device}')
 
 
 def run():
-    model = UNet(
-        n_blocks=4,
-        start_filts=32,
-        planar_blocks=(0,),
-        activation='relu',
-        batch_norm=True,
-        # conv_mode='valid',
-        # up_mode='resizeconv_nearest',  # Enable to avoid checkerboard artifacts
-        adaptive=True  # Experimental. Disable if results look weird.
-    ).to(device)
+    # model = UNet(
+    #     n_blocks=4,
+    #     start_filts=32,
+    #     planar_blocks=(0,),
+    #     activation='relu',
+    #     batch_norm=True,
+    #     # conv_mode='valid',
+    #     # up_mode='resizeconv_nearest',  # Enable to avoid checkerboard artifacts
+    #     adaptive=True  # Experimental. Disable if results look weird.
+    # ).to(device)
+    model = FFN(in_channels=1, out_channels=2).to(device)
     # Example for a model-compatible input.
     example_input = torch.ones(1, 1, 32, 64, 64)
 
@@ -115,7 +117,7 @@ def run():
 
 
     # USER PATHS
-    save_root = os.path.expanduser('./log/e3training/')
+    save_root = os.path.expanduser('./log/ffn/')
     os.makedirs(save_root, exist_ok=True)
     if os.getenv('CLUSTER') == 'WHOLEBRAIN':  # Use bigger, but private data set
         data_root = '/wholebrain/scratch/j0126/barrier_gt_phil/'
@@ -249,7 +251,7 @@ def run():
         lr_sched = torch.optim.lr_scheduler.CyclicLR(
             optimizer,
             base_lr=1e-6,
-            max_lr=0.1,
+            max_lr=1e-3,
             step_size_up=10000,
             step_size_down=10000,
             cycle_momentum=True
