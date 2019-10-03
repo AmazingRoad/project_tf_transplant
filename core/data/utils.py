@@ -10,6 +10,9 @@ import os
 import signal
 import traceback
 from typing import Sequence, Tuple, Union
+import itertools
+from scipy.special import logit
+import torch
 
 import h5py
 import numpy as np
@@ -340,3 +343,36 @@ class GracefulInterrupt:
     def exit_gracefully(self, sig, frame):
         logger.warning('Signal %s received. Delaying KeyboardInterrupt.' % sig)
         self.now = True
+
+
+###########################################################
+def make_seed(shape, pad=0.05, seed=0.95):
+    seed_array = np.full(list(shape), pad, dtype=np.float32)
+    idx = tuple([slice(None)] + list(np.array(shape) // 2))
+    seed_array[idx] = seed
+    return seed_array
+
+
+def fixed_offsets(seed, fov_moves, threshold):
+    """Generates offsets based on a fixed list."""
+    for off in itertools.chain([(0, 0, 0)], fov_moves):
+        is_valid_move = seed[0,
+                            seed.shape[1] // 2 + off[2],
+                            seed.shape[2] // 2 + off[1],
+                            seed.shape[3] // 2 + off[0]
+                        ] >= logit(np.array(threshold))
+
+        if not is_valid_move:
+            continue
+
+        yield off
+
+
+def update_seed(updated, seed, model, offsets):
+    for idx, offset in enumerate(offsets):
+        start = offset + model.radii - model.input_size // 2
+        end = start + model.input_size
+        assert np.all(start >= 0)
+
+        selector = [slice(s, e) for s, e in zip(start, end)]
+        seed[0][selector] = torch.squeeze(updated[idx]).detach().cpu()

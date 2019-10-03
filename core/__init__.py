@@ -1,10 +1,8 @@
 __all__ = ["floatX"]
 import numpy as np
-from core.logger import logger_setup
 import logging
 logger = logging.getLogger('elektronn3log')
 
-logger_setup()
 
 floatX = np.float32  # TODO: Either hardcode float32 everywhere or add float16 support
 

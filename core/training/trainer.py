@@ -231,7 +231,6 @@ class Trainer:
             preview_tile_shape: Optional[Tuple[int, ...]] = None,
             preview_overlap_shape: Optional[Tuple[int, ...]] = None,
             preview_interval: int = 5,
-            offset: Optional[Sequence[int]] = None,
             exp_name: Optional[str] = None,
             example_input: Optional[torch.Tensor] = None,
             enable_save_trace: bool = False,
@@ -292,7 +291,6 @@ class Trainer:
         self.preview_tile_shape = preview_tile_shape
         self.preview_overlap_shape = preview_overlap_shape
         self.preview_interval = preview_interval
-        self.offset = offset
         self.overlay_alpha = overlay_alpha
         self.save_root = os.path.expanduser(save_root)
         self.example_input = example_input
