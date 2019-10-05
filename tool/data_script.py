@@ -93,21 +93,21 @@ def compute_partitions(seg_array, thresholds, lom_radius, min_size=10000):
         if l == 0:
             continue
 
-    object_mask = (seg_array == l)
+        object_mask = (seg_array == l)
 
-    svt = _summed_volume_table(object_mask)
-    active_fraction = _query_summed_volume(svt, lom_diam_zyx) / fov_volume
-    assert active_fraction.shape == output.shape
+        svt = _summed_volume_table(object_mask)
+        active_fraction = _query_summed_volume(svt, lom_diam_zyx) / fov_volume
+        assert active_fraction.shape == output.shape
 
-    # Drop context that is only necessary for computing the active fraction
-    # (i.e. one LOM radius in every direction).
-    object_mask = object_mask[valid_sel]
+        # Drop context that is only necessary for computing the active fraction
+        # (i.e. one LOM radius in every direction).s
+        object_mask = object_mask[valid_sel]
 
-    # TODO(mjanusz): Use np.digitize here.
-    for i, th in enumerate(thresholds):
-        output[object_mask & (active_fraction < th) & (output == 0)] = i + 1
+        # TODO(mjanusz): Use np.digitize here.
+        for i, th in enumerate(thresholds):
+            output[object_mask & (active_fraction < th) & (output == 0)] = i + 1
 
-    output[object_mask & (active_fraction >= thresholds[-1]) & (output == 0)] = len(thresholds) + 1
+        output[object_mask & (active_fraction >= thresholds[-1]) & (output == 0)] = len(thresholds) + 1
 
     return corner, output
 

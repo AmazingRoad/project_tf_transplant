@@ -107,48 +107,55 @@ def run():
         'val_IoU': metrics.bin_iou,
     }
 
+    best_loss = np.inf
+
     for iter, (data, label, seed, coor)in enumerate(train_loader):
 
         # while(1):
-            offsets = []
-            for idx, offset in enumerate(fixed_offsets(seed, train_dataset.shifts, 0.9)):
-                offsets.append(np.array(offset))
-                if idx == 3:##bach_size-1
-                    break
-            if len(offsets) == 0:
+        offsets = []
+        for idx, offset in enumerate(fixed_offsets(seed, train_dataset.shifts, 0.9)):
+            offsets.append(np.array(offset))
+            if idx == 3:##bach_size-1
                 break
+        if len(offsets) == 0:
+            break
 
-            images = np.zeros([len(offsets)]+[1, 33, 33, 33])
-            labels = np.zeros([len(offsets)]+[1, 33, 33, 33])
-            seeds = np.zeros([len(offsets)]+[1, 33, 33, 33])
-            for idx, offset in enumerate(offsets):
-                start = offset + model.radii - model.input_size // 2
-                end = start + model.input_size
-                assert np.all(start >= 0)
+        images = np.zeros([len(offsets)]+[1, 33, 33, 33])
+        labels = np.zeros([len(offsets)]+[1, 33, 33, 33])
+        seeds = np.zeros([len(offsets)]+[1, 33, 33, 33])
+        for idx, offset in enumerate(offsets):
+            start = offset + model.radii - model.input_size // 2
+            end = start + model.input_size
+            assert np.all(start >= 0)
 
-                selector = [slice(s, e) for s, e in zip(start, end)]
-                images[idx][0] = data[0][selector]
-                labels[idx][0] = label[0][selector]
-                seeds[idx][0] = seed[0][selector]
+            selector = [slice(s, e) for s, e in zip(start, end)]
+            images[idx][0] = data[0][selector]
+            labels[idx][0] = label[0][selector]
+            seeds[idx][0] = seed[0][selector]
 
-            images = torch.from_numpy(images).float()
-            labels = torch.from_numpy(labels).float()
-            seeds = torch.from_numpy(seeds).float()
-            input_data = torch.cat([images, seeds], dim=1)
+        images = torch.from_numpy(images).float()
+        labels = torch.from_numpy(labels).float()
+        seeds = torch.from_numpy(seeds).float()
+        input_data = torch.cat([images, seeds], dim=1)
 
-            input_data = Variable(input_data.cuda())
-            seeds = seeds.cuda()
-            labels = labels.cuda()
+        input_data = Variable(input_data.cuda())
+        seeds = seeds.cuda()
+        labels = labels.cuda()
 
-            logits = model(input_data)
+        logits = model(input_data)
 
-            updated = seeds + logits
-            optimizer.zero_grad()
-            loss = F.binary_cross_entropy_with_logits(updated, labels)
-            loss.backward()
-            optimizer.step()
-            print("loss: {}, offset: {}".format(loss.item(), offsets))
-            update_seed(updated, seed, model, offsets)
+        updated = seeds + logits
+        optimizer.zero_grad()
+        loss = F.binary_cross_entropy_with_logits(updated, labels)
+        loss.backward()
+        optimizer.step()
+        print("loss: {}, offset: {}".format(loss.item(), offsets))
+        update_seed(updated, seed, model, offsets)
+
+        if best_loss > loss.item():
+            best_loss = loss.item()
+            torch.save(model.state_dict(), 'test.pth')
+            print('Epoch: model is saved')
 
 
 if __name__ == "__main__":
