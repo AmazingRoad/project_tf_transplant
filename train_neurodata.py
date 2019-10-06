@@ -4,13 +4,16 @@ import random
 import zipfile
 from torch.utils.data import DataLoader
 from core.data.utils import *
-
+from functools import partial
+import os
 import torch
 from torch import nn
 from torch import optim
 import numpy as np
 from torch.autograd import Variable
 import torch.nn.functional as F
+import cv2
+import numpy as np
 
 parser = argparse.ArgumentParser(description='Train a network.')
 parser.add_argument(
@@ -49,14 +52,12 @@ else:
 # Don't move this stuff, it needs to be run this early to work
 import core
 core.select_mpl_backend('Agg')
-logger = logging.getLogger('elektronn3log')
 
 from core.training import metrics
 from core.models.ffn import FFN
 from core.data import BatchCreator
 
 device = torch.device('cuda')
-logger.info(f'Running on device: {device}')
 
 
 def run():
@@ -109,33 +110,12 @@ def run():
 
     best_loss = np.inf
 
-    for iter, (data, label, seed, coor)in enumerate(train_loader):
+    # for iter, (data, label, seed, coor)in enumerate(train_loader):
 
-        # while(1):
-        offsets = []
-        for idx, offset in enumerate(fixed_offsets(seed, train_dataset.shifts, 0.9)):
-            offsets.append(np.array(offset))
-            if idx == 3:##bach_size-1
-                break
-        if len(offsets) == 0:
-            break
+    for _, (seeds, images, labels, offsets) in enumerate(
+            get_batch(train_loader, 4, [33, 33, 33], partial(fixed_offsets, fov_moves=train_dataset.shifts))):
+        # seeds, images, labels, offsets = get_batch(data, label, seed, 4, [33, 33, 33], partial(fixed_offsets, fov_moves=train_dataset.shifts))
 
-        images = np.zeros([len(offsets)]+[1, 33, 33, 33])
-        labels = np.zeros([len(offsets)]+[1, 33, 33, 33])
-        seeds = np.zeros([len(offsets)]+[1, 33, 33, 33])
-        for idx, offset in enumerate(offsets):
-            start = offset + model.radii - model.input_size // 2
-            end = start + model.input_size
-            assert np.all(start >= 0)
-
-            selector = [slice(s, e) for s, e in zip(start, end)]
-            images[idx][0] = data[0][selector]
-            labels[idx][0] = label[0][selector]
-            seeds[idx][0] = seed[0][selector]
-
-        images = torch.from_numpy(images).float()
-        labels = torch.from_numpy(labels).float()
-        seeds = torch.from_numpy(seeds).float()
         input_data = torch.cat([images, seeds], dim=1)
 
         input_data = Variable(input_data.cuda())
@@ -149,8 +129,19 @@ def run():
         loss = F.binary_cross_entropy_with_logits(updated, labels)
         loss.backward()
         optimizer.step()
+        # if loss.item() < 1:
+        #     for idx in range(len(images)):
+        #         im = images[idx, 0, :, :][1, :, :].cpu().numpy().astype(np.uint8)
+        #         label = labels[idx, 0, :, :].detach().cpu().numpy()*255
+        #         label = label.astype(np.uint8)[1, :, :]
+        #         logit = torch.sigmoid(updated)*255
+        #         logit = logit[idx, 0, :, :].detach().cpu().numpy().astype(np.uint8)[1, :, :]
+        #         cv2.imshow('im', im)
+        #         cv2.imshow('logit', logit)
+        #         cv2.imshow('label', label)
+        #         cv2.waitKey()
         print("loss: {}, offset: {}".format(loss.item(), offsets))
-        update_seed(updated, seed, model, offsets)
+        # update_seed(updated, seeds, model, offsets)
 
         if best_loss > loss.item():
             best_loss = loss.item()

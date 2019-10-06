@@ -1,6 +1,6 @@
 from torch.utils import data
 from typing import Tuple, Dict, Optional, Union, Sequence, Any, List, Callable
-import logging
+import h5py
 import numpy as np
 import torch
 from scipy.special import logit
@@ -76,11 +76,11 @@ class BatchCreator(data.Dataset):
         assert np.all(start >= 0)
 
         selector = [slice(s, e) for s, e in zip(start, end)]
-        self.image_patch = self.input_data[self.data_idx][selector]
-        self.label_patch = self.label_data[self.data_idx][selector]
+        self.image_patch = self.input_data[self.data_idx][tuple(selector)]
+        self.label_patch = self.label_data[self.data_idx][tuple(selector)]
         self.label_patch = np.logical_and(self.label_patch > 0, np.equal(self.label_patch, self.label_patch[tuple(self.label_radii)]))
         self.label_patch = np.where(self.label_patch, np.ones(self.label_patch.shape)*0.95, np.ones(self.label_patch.shape)*0.05)
-        self.seed_patch = self.seed[self.data_idx][selector]
+        self.seed_patch = self.seed[self.data_idx][tuple(selector)]
         self.seed_patch[tuple(self.label_radii)] = logit(0.95)
 
         return torch.from_numpy(self.image_patch).float(), \
