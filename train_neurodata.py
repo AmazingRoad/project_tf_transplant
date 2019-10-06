@@ -6,30 +6,14 @@ from core.data.utils import *
 from functools import partial
 import os
 import torch
-from torch import nn
 from torch import optim
-import numpy as np
 from torch.autograd import Variable
 import torch.nn.functional as F
-import cv2
 import numpy as np
 from core.models.ffn import FFN
 from core.data import BatchCreator
 
 parser = argparse.ArgumentParser(description='Train a network.')
-parser.add_argument(
-    '-s', '--epoch-size', type=int, default=100,
-    help='How many training samples to process between '
-         'validation/preview/extended-stat calculation phases.'
-)
-parser.add_argument(
-    '-m', '--max-steps', type=int, default=500000,
-    help='Maximum number of training steps to perform.'
-)
-parser.add_argument(
-    '-t', '--max-runtime', type=int, default=3600 * 24 * 4,  # 4 days
-    help='Maximum training time (in seconds).'
-)
 parser.add_argument(
     '-r', '--resume', metavar='PATH',
     help='Path to pretrained model state dict or a compiled and saved '
@@ -40,9 +24,10 @@ parser.add_argument(
     help='Run in fully deterministic mode (at the cost of execution speed).'
 )
 
+parser.add_argument('-d', '--data', type=str, default='./data1.h5', help='training data')
 parser.add_argument('-b', '--batch_size', type=int, default=4, help='training batch size')
-parser.add_argument('-d', '--delta', default=(8, 8, 8), help='delta offset')
-parser.add_argument('--input_size', default=(33, 33, 33), help='input size')
+parser.add_argument('--delta', default=(5, 5, 5), help='delta offset')
+parser.add_argument('--input_size', default=(30, 30, 30), help='input size')
 parser.add_argument('--clip_grad_thr', type=float, default=0.7, help='grad clip threshold')
 parser.add_argument('--save_path', type=str, default='./model', help='model save path')
 
@@ -64,10 +49,8 @@ def run():
     """创建模型"""
     model = FFN(in_channels=2, out_channels=1).cuda()
 
-    save_root = os.path.expanduser('./log/ffn/')
-    os.makedirs(save_root, exist_ok=True)
     """数据路径"""
-    input_h5data = ['./data.h5']
+    input_h5data = [args.data]
 
     """创建data loader"""
     train_dataset = BatchCreator(input_h5data, args.input_size, delta=args.delta, train=True)
