@@ -3,7 +3,6 @@ from typing import Sequence, List
 import h5py
 from .utils import *
 import random
-import cv2
 
 
 class BatchCreator(data.Dataset):
