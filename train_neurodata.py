@@ -61,35 +61,15 @@ device = torch.device('cuda')
 
 
 def run():
+    """创建模型"""
     model = FFN(in_channels=2, out_channels=1).to(device)
 
     save_root = os.path.expanduser('./log/ffn/')
     os.makedirs(save_root, exist_ok=True)
-
+    """数据路径"""
     input_h5data = ['./data.h5']
 
-    if args.resume is not None:  # Load pretrained network
-        pretrained = os.path.expanduser(args.resume)
-        _warning_str = 'Loading model without optimizer state. Prefer state dicts'
-        if zipfile.is_zipfile(pretrained):  # Zip file indicates saved ScriptModule
-            logger.warning(_warning_str)
-            model = torch.jit.load(pretrained, map_location=device)
-        else:  # Either state dict or pickled model
-            state = torch.load(pretrained)
-            if isinstance(state, dict):
-                model.load_state_dict(state['model_state_dict'])
-                optimizer_state_dict = state.get('optimizer_state_dict')
-                lr_sched_state_dict = state.get('lr_sched_state_dict')
-                if optimizer_state_dict is None:
-                    logger.warning('optimizer_state_dict not found.')
-                if lr_sched_state_dict is None:
-                    logger.warning('lr_sched_state_dict not found.')
-            elif isinstance(state, nn.Module):
-                logger.warning(_warning_str)
-                model = state
-            else:
-                raise ValueError(f'Can\'t load {pretrained}.')
-
+    """创建data loader"""
     train_dataset = BatchCreator(input_h5data, (33, 33, 33), delta=(8, 8, 8), train=True)
     train_loader = DataLoader(train_dataset, shuffle=True, num_workers=1, pin_memory=True)
 
@@ -111,7 +91,7 @@ def run():
     best_loss = np.inf
 
     # for iter, (data, label, seed, coor)in enumerate(train_loader):
-
+    """获取数据流"""
     for _, (seeds, images, labels, offsets) in enumerate(
             get_batch(train_loader, 4, [33, 33, 33], partial(fixed_offsets, fov_moves=train_dataset.shifts))):
         # seeds, images, labels, offsets = get_batch(data, label, seed, 4, [33, 33, 33], partial(fixed_offsets, fov_moves=train_dataset.shifts))
@@ -129,20 +109,10 @@ def run():
         loss = F.binary_cross_entropy_with_logits(updated, labels)
         loss.backward()
         optimizer.step()
-        # if loss.item() < 1:
-        #     for idx in range(len(images)):
-        #         im = images[idx, 0, :, :][1, :, :].cpu().numpy().astype(np.uint8)
-        #         label = labels[idx, 0, :, :].detach().cpu().numpy()*255
-        #         label = label.astype(np.uint8)[1, :, :]
-        #         logit = torch.sigmoid(updated)*255
-        #         logit = logit[idx, 0, :, :].detach().cpu().numpy().astype(np.uint8)[1, :, :]
-        #         cv2.imshow('im', im)
-        #         cv2.imshow('logit', logit)
-        #         cv2.imshow('label', label)
-        #         cv2.waitKey()
         print("loss: {}, offset: {}".format(loss.item(), offsets))
         # update_seed(updated, seeds, model, offsets)
-
+        # seed = updated
+        """根据最佳loss并且保存模型"""
         if best_loss > loss.item():
             best_loss = loss.item()
             torch.save(model.state_dict(), 'test.pth')

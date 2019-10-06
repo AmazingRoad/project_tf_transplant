@@ -6,6 +6,7 @@ import numpy as np
 
 
 def make_seed(shape, pad=0.05, seed=0.95):
+    """创建种子"""
     seed_array = np.full(list(shape), pad, dtype=np.float32)
     idx = tuple([slice(None)] + list(np.array(shape) // 2))
     seed_array[idx] = seed
@@ -13,7 +14,7 @@ def make_seed(shape, pad=0.05, seed=0.95):
 
 
 def fixed_offsets(seed, fov_moves, threshold=0.9):
-    """Generates offsets based on a fixed list."""
+    """offset偏移."""
     for off in itertools.chain([(0, 0, 0)], fov_moves):
         is_valid_move = seed[0,
                             seed.shape[1] // 2 + off[2],
@@ -28,6 +29,7 @@ def fixed_offsets(seed, fov_moves, threshold=0.9):
 
 
 def crop_and_pad(data, offset, crop_shape, target_shape=None):
+    """根据offset crop patch"""
     # Spatial dimensions only. All vars in zyx.
     shape = np.array(data.shape[1:])
     crop_shape = np.array(crop_shape)
@@ -66,8 +68,6 @@ def get_example(loader, shape, get_offsets):
                 patches = crop_and_pad(image, off, shape).unsqueeze(0)
                 labels = crop_and_pad(targets, off, shape).unsqueeze(0)
                 offset = off
-                print(offset)
-                print(iter)
 
                 yield predicted, patches, labels, offset
 
