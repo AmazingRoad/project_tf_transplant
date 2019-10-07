@@ -64,18 +64,13 @@ class BatchCreator(data.Dataset):
         """根据记载的label坐标从250x250x250的立方中根据索引截取49x49x49的patch"""
         self.coor_patch = self.coor[self.data_idx][idx]
 
-        start = self.coor_patch - self.seed_shape // 2
-        end = start + self.seed_shape
-
-        assert np.all(start >= 0)
-
-        selector = [slice(s, e) for s, e in zip(start, end)]
-        self.image_patch = self.input_data[self.data_idx][tuple(selector)]
-        self.label_patch = self.label_data[self.data_idx][tuple(selector)]
+        self.image_patch = center_crop_and_pad(self.input_data[self.data_idx], self.coor_patch, self.seed_shape)
+        self.label_patch = center_crop_and_pad(self.label_data[self.data_idx], self.coor_patch, self.seed_shape)
         """保证中心为当前label"""
         self.label_patch = np.logical_and(self.label_patch > 0, np.equal(self.label_patch, self.label_patch[tuple(self.label_radii)]))
         self.label_patch = np.where(self.label_patch, np.ones(self.label_patch.shape)*0.95, np.ones(self.label_patch.shape)*0.05)
-        self.seed_patch = self.seed[self.data_idx][tuple(selector)]
+
+        self.seed_patch = center_crop_and_pad(self.seed[self.data_idx], self.coor_patch, self.seed_shape)
         self.seed_patch[tuple(self.label_radii)] = logit(0.95)
 
         return torch.from_numpy(self.image_patch).float(), \

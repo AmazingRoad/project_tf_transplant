@@ -28,6 +28,32 @@ def fixed_offsets(seed, fov_moves, threshold=0.9):
         yield off
 
 
+def center_crop_and_pad(data, coor, target_shape):
+    """根据中心坐标 crop patch"""
+    target_shape = np.array(target_shape)
+
+    start = coor - target_shape // 2
+    end = start + target_shape
+
+    assert np.all(start >= 0)
+
+    selector = [slice(s, e) for s, e in zip(start, end)]
+    cropped = data[selector]
+
+    if target_shape is not None:
+        target_shape = np.array(target_shape)
+        delta = target_shape - cropped.shape
+        pre = delta // 2
+        post = delta - delta // 2
+
+        paddings = []  # no padding for batch
+        paddings.extend(zip(pre, post))
+
+        cropped = np.pad(cropped, paddings, mode='constant')
+
+    return cropped
+
+
 def crop_and_pad(data, offset, crop_shape, target_shape=None):
     """根据offset crop patch"""
     # Spatial dimensions only. All vars in zyx.
@@ -59,26 +85,24 @@ def crop_and_pad(data, offset, crop_shape, target_shape=None):
     return cropped
 
 
-def get_example(loader, shape, get_offsets):
+def get_example(image, targets, seed, shape, get_offsets):
 
-    while True:
-        for iter, (image, targets, seed, coor) in enumerate(loader):
-            for off in get_offsets(seed):
-                predicted = crop_and_pad(seed, off, shape).unsqueeze(0)
-                patches = crop_and_pad(image, off, shape).unsqueeze(0)
-                labels = crop_and_pad(targets, off, shape).unsqueeze(0)
-                offset = off
+    for off in get_offsets(seed):
+        predicted = crop_and_pad(seed, off, shape).unsqueeze(0)
+        patches = crop_and_pad(image, off, shape).unsqueeze(0)
+        labels = crop_and_pad(targets, off, shape).unsqueeze(0)
+        offset = off
 
-                yield predicted, patches, labels, offset
+        yield predicted, patches, labels, offset
 
 
-def get_batch(loader, batch_size, shape, get_offsets):
+def get_batch(image, targets, seed, batch_size, shape, get_offsets):
     def _batch(iterable):
         for batch_vals in iterable:
           yield zip(*batch_vals)
 
     for seeds, patches, labels, offsets in _batch(six.moves.zip(
-        *[get_example(loader, shape, get_offsets) for _
+        *[get_example(image, targets, seed, shape, get_offsets) for _
             in range(batch_size)])):
 
         yield torch.cat(seeds, dim=0).float(), torch.cat(patches, dim=0).float(), \
@@ -86,11 +110,10 @@ def get_batch(loader, batch_size, shape, get_offsets):
 
 
 def update_seed(updated, seed, model, offsets):
-    # for idx, offset in enumerate(offsets):
-    #     start = offset + model.radii - model.input_size // 2
-    #     end = start + model.input_size
-    #     assert np.all(start >= 0)
-    #
-    #     selector = [slice(s, e) for s, e in zip(start, end)]
-    #     seed[0][selector] = torch.squeeze(updated[idx]).detach().cpu()
-    seed = updated
+    for idx, offset in enumerate(offsets):
+        start = offset + model.radii - model.input_size // 2
+        end = start + model.input_size
+        assert np.all(start >= 0)
+
+        selector = [slice(s, e) for s, e in zip(start, end)]
+        seed[0][selector] = torch.squeeze(updated[idx]).detach().cpu()

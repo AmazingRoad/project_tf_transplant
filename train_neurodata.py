@@ -24,11 +24,11 @@ parser.add_argument(
     help='Run in fully deterministic mode (at the cost of execution speed).'
 )
 
-parser.add_argument('-d', '--data', type=str, default='./data1.h5', help='training data')
+parser.add_argument('-d', '--data', type=str, default='./data.h5', help='training data')
 parser.add_argument('-b', '--batch_size', type=int, default=4, help='training batch size')
-parser.add_argument('--delta', default=(5, 5, 5), help='delta offset')
-parser.add_argument('--input_size', default=(30, 30, 30), help='input size')
-parser.add_argument('--clip_grad_thr', type=float, default=0.7, help='grad clip threshold')
+parser.add_argument('--delta', default=(8, 8, 8), help='delta offset')
+parser.add_argument('--input_size', default=(33, 33, 33), help='input size')
+parser.add_argument('--clip_grad_thr', type=float, default=0.5, help='grad clip threshold')
 parser.add_argument('--save_path', type=str, default='./model', help='model save path')
 
 args = parser.parse_args()
@@ -47,7 +47,7 @@ if not os.path.exists(args.save_path):
 
 def run():
     """创建模型"""
-    model = FFN(in_channels=2, out_channels=1).cuda()
+    model = FFN(in_channels=2, out_channels=1, input_size=args.input_size, delta=args.delta).cuda()
 
     """数据路径"""
     input_h5data = [args.data]
@@ -66,37 +66,39 @@ def run():
     best_loss = np.inf
 
     """获取数据流"""
-    for itr, (seeds, images, labels, offsets) in enumerate(
-            get_batch(train_loader, args.batch_size, args.input_size, partial(fixed_offsets, fov_moves=train_dataset.shifts))):
 
-        input_data = torch.cat([images, seeds], dim=1)
+    for iter, (image, targets, seed, coor) in enumerate(train_loader):
+        for _, (seeds, images, labels, offsets) in enumerate(
+                get_batch(image, targets, seed, args.batch_size, args.input_size, partial(fixed_offsets, fov_moves=train_dataset.shifts))):
 
-        input_data = Variable(input_data.cuda())
-        seeds = seeds.cuda()
-        labels = labels.cuda()
+            input_data = torch.cat([images, seeds], dim=1)
 
-        logits = model(input_data)
+            input_data = Variable(input_data.cuda())
+            seeds = seeds.cuda()
+            labels = labels.cuda()
 
-        updated = seeds + logits
-        optimizer.zero_grad()
-        loss = F.binary_cross_entropy_with_logits(updated, labels)
-        loss.backward()
-        """梯度截断"""
-        torch.nn.utils.clip_grad_norm(model.parameters(), args.clip_grad_thr)
+            logits = model(input_data)
 
-        optimizer.step()
+            updated = seeds + logits
+            optimizer.zero_grad()
+            loss = F.binary_cross_entropy_with_logits(updated, labels)
+            loss.backward()
+            """梯度截断"""
+            torch.nn.utils.clip_grad_norm(model.parameters(), args.clip_grad_thr)
 
-        diff = (updated.sigmoid()-labels).detach().cpu().numpy()
-        accuracy = 1.0*(diff < 0.001).sum() / np.prod(labels.shape)
-        print("loss: {}, offset: {}, Accuracy: {:.2f}% ".format(loss.item(), itr, accuracy.item()*100))
+            optimizer.step()
 
-        # update_seed(updated, seeds, model, offsets)
-        # seed = updated
-        """根据最佳loss并且保存模型"""
-        if best_loss > loss.item():
-            best_loss = loss.item()
-            torch.save(model.state_dict(), os.path.join(args.save_path, 'ffn.pth'))
-            print('Model saved!')
+            diff = (updated.sigmoid()-labels).detach().cpu().numpy()
+            accuracy = 1.0*(diff < 0.001).sum() / np.prod(labels.shape)
+            print("loss: {}, iteration: {}, Accuracy: {:.2f}%, offset:{}".format(loss.item(), iter, accuracy.item()*100, offsets))
+
+            update_seed(updated, seed, model, offsets)
+
+            """根据最佳loss并且保存模型"""
+            if best_loss > loss.item():
+                best_loss = loss.item()
+                torch.save(model.state_dict(), os.path.join(args.save_path, 'ffn.pth'))
+                print('Model saved!')
 
 
 if __name__ == "__main__":

@@ -2,16 +2,16 @@ import argparse
 from collections import defaultdict
 import h5py
 import numpy as np
-from libtiff import TIFFfile
+import tiffile
 import cv2
 
 parser = argparse.ArgumentParser('script to generate training data')
 parser.add_argument('--image', type=str, default='./data/ffn/images/raw_data_4_channel.tif', help='directory of images')
 parser.add_argument('--label', type=str, default='./data/ffn/labels/target_data.tif', help='directory of labels')
 parser.add_argument('--save', type=str, default='data1.h5', help='save file name')
-parser.add_argument('--shape', type=list, default=[40, 40, 40], help='seed shape')
+parser.add_argument('--shape', type=list, default=[41, 41, 41], help='seed shape')
 parser.add_argument('--thr', type=list, default=[0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
-parser.add_argument('--min_size', type=int, default=5000)
+parser.add_argument('--min_size', type=int, default=1000)
 
 args = parser.parse_args()
 
@@ -110,19 +110,15 @@ def compute_partitions(seg_array, thresholds, lom_radius, min_size=10000):
 
 
 def run():
-    images = TIFFfile(args.image)
-    labels = TIFFfile(args.label)
-    samples, _ = images.get_samples()
-    images = np.array(samples).transpose([1, 2, 3, 0])
+    images = tiffile.TiffFile(args.image).asarray()
+    labels = tiffile.TiffFile(args.label).asarray()
     images = np.array([cv2.cvtColor(im, cv2.COLOR_BGR2GRAY) for im in images])
-    samples, _ = labels.get_samples()
-    labels = np.array(samples).transpose([1, 2, 3, 0])
     labels = np.array([cv2.cvtColor(label, cv2.COLOR_BGR2GRAY) for label in labels])
 
     m = np.array([int(x/2) for x in args.shape])
     seg = labels.copy()
     corner, partitions = compute_partitions(seg[...], [float(x) for x in args.thr], m, args.min_size)
-    print(corner)
+
     totals = defaultdict(int)  # partition -> voxel count
     indices = defaultdict(list)  # partition -> [(vol_id, 1d index)]
     vol_shapes = partitions.shape
