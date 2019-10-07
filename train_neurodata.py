@@ -12,16 +12,16 @@ import torch.nn.functional as F
 import numpy as np
 from core.models.ffn import FFN
 from core.data import BatchCreator
-import time
+import sys
 
 
 parser = argparse.ArgumentParser(description='Train a network.')
 parser.add_argument('--deterministic', action='store_true',
     help='Run in fully deterministic mode (at the cost of execution speed).')
-parser.add_argument('-d', '--data', type=str, default='./data.h5', help='training data')
+parser.add_argument('-d', '--data', type=str, default='./data1.h5', help='training data')
 parser.add_argument('-b', '--batch_size', type=int, default=4, help='training batch size')
-parser.add_argument('--delta', default=(8, 8, 8), help='delta offset')
-parser.add_argument('--input_size', default=(33, 33, 33), help='input size')
+parser.add_argument('--delta', default=(5, 5, 5), help='delta offset')
+parser.add_argument('--input_size', default=(31, 31, 31), help='input size')
 parser.add_argument('--clip_grad_thr', type=float, default=0.7, help='grad clip threshold')
 parser.add_argument('--save_path', type=str, default='./model', help='model save path')
 parser.add_argument('--resume', type=str, default=None, help='resume training')
@@ -61,12 +61,13 @@ def run():
     """获取数据流"""
     t_last = time.time()
     cnt = 0
+    tp = fp = tn = fn = 0
     while cnt < args.iter:
+        cnt += 1
         for iter, (seeds, images, labels, offsets) in enumerate(
                 get_batch(train_loader, args.batch_size, args.input_size,
                           partial(fixed_offsets, fov_moves=train_dataset.shifts))):
 
-            cnt += 1
             t_curr = time.time()
             """正样本权重"""
             pos_w = - torch.log((labels > 0.5).sum().float() / np.prod(labels.shape))
@@ -94,22 +95,27 @@ def run():
             true_mask = (labels > 0.5).cpu().numpy()
             true_bg = np.logical_not(true_mask)
             pred_bg = np.logical_not(pred_mask)
-            tp = (true_mask & pred_mask).sum()
-            fp = (true_bg & pred_mask).sum()
-            fn = (true_mask & pred_bg).sum()
-            tn = (true_bg & pred_bg).sum()
+            tp += (true_mask & pred_mask).sum()
+            fp += (true_bg & pred_mask).sum()
+            fn += (true_mask & pred_bg).sum()
+            tn += (true_bg & pred_bg).sum()
             precision = 1.0 * tp / max(tp + fp, 1)
             recall = 1.0 * tp / max(tp + fn, 1)
             accuracy = 1.0 * (tp + tn) / (tp + tn + fp + fn)
-            print("loss: {:.2f}, iteration: {}, Precision: {:.2f}%, Recall: {:.2f}%, Accuracy: {:.2f}%".format(
-                loss.item(), iter, precision*100, recall*100, accuracy * 100))
+            count = round(iter / len(train_loader) * 50)
+            sys.stdout.write('[Epoch {}], {}/{}: [{}{}] loss: {:.4}, Precision: {:.2f}%, Recall: {:.2f}%, '
+                             'Accuracy: {:.2f}%\r'.format(cnt, (iter + 1) * args.batch_size, len(train_loader),
+                                                          '#' * count, ' ' * (50 - count), loss.item(), precision*100,
+                                                          recall*100, accuracy * 100))
 
             """根据最佳loss并且保存模型"""
             if best_loss > loss.item() or t_curr - t_last > args.interval:
+                tp = fp = tn = fn = 0
                 t_last = t_curr
                 best_loss = loss.item()
                 torch.save(model.state_dict(), os.path.join(args.save_path, 'ffn.pth'))
-                print('Model saved!')
+                print('Precision: {:.2f}%, Recall: {:.2f}%, Accuracy: {:.2f}%, Model saved!'.format(
+                    precision * 100, recall * 100, accuracy * 10))
 
 
 if __name__ == "__main__":
