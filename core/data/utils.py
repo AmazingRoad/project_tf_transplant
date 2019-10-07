@@ -38,7 +38,7 @@ def center_crop_and_pad(data, coor, target_shape):
     assert np.all(start >= 0)
 
     selector = [slice(s, e) for s, e in zip(start, end)]
-    cropped = data[selector]
+    cropped = data[tuple(selector)]
 
     if target_shape is not None:
         target_shape = np.array(target_shape)

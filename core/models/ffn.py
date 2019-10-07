@@ -45,4 +45,4 @@ class FFN(nn.Module):
     def _init_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv3d):
-                nn.init.kaiming_normal_(m.weight)
+                nn.init.xavier_uniform_(m.weight)
