@@ -15,11 +15,8 @@ from core.data import BatchCreator
 
 
 parser = argparse.ArgumentParser(description='Train a network.')
-parser.add_argument(
-    '--deterministic', action='store_true',
-    help='Run in fully deterministic mode (at the cost of execution speed).'
-)
-
+parser.add_argument('--deterministic', action='store_true',
+    help='Run in fully deterministic mode (at the cost of execution speed).')
 parser.add_argument('-d', '--data', type=str, default='./data.h5', help='training data')
 parser.add_argument('-b', '--batch_size', type=int, default=4, help='training batch size')
 parser.add_argument('--delta', default=(8, 8, 8), help='delta offset')
@@ -59,47 +56,50 @@ def run():
     best_loss = np.inf
 
     """获取数据流"""
-    for iter, (image, targets, seed, coor) in enumerate(train_loader):
-        for _, (seeds, images, labels, offsets) in enumerate(
-                get_batch(image, targets, seed, args.batch_size, args.input_size, partial(fixed_offsets, fov_moves=train_dataset.shifts))):
+    for iter, (seeds, images, labels, offsets) in enumerate(
+            get_batch(train_loader, args.batch_size, args.input_size,
+                      partial(fixed_offsets, fov_moves=train_dataset.shifts))):
 
-            input_data = torch.cat([images, seeds], dim=1)
+        pos_w = - torch.log((labels > 0.5).sum().float() / np.prod(labels.shape))
+        slice = seeds[:, :, seeds.shape[2] // 2, :, :].sigmoid()
+        seeds[:, :, seeds.shape[2] // 2, :, :] = slice
+        labels = labels.cuda()
 
-            input_data = Variable(input_data.cuda())
-            seeds = seeds.cuda()
-            labels = labels.cuda()
+        input_data = torch.cat([images, seeds], dim=1)
+        input_data = Variable(input_data.cuda())
 
-            logits = model(input_data)
+        logits = model(input_data)
+        updated = seeds.cuda() + logits
 
-            updated = seeds + logits
-            optimizer.zero_grad()
-            loss = F.binary_cross_entropy(updated.sigmoid(), labels)
-            loss.backward()
-            """梯度截断"""
-            torch.nn.utils.clip_grad_norm(model.parameters(), args.clip_grad_thr)
-            optimizer.step()
+        optimizer.zero_grad()
+        loss = F.binary_cross_entropy_with_logits(updated, labels, pos_weight=pos_w)
+        loss.backward()
+        """梯度截断"""
+        torch.nn.utils.clip_grad_value_(model.parameters(), args.clip_grad_thr)
+        optimizer.step()
 
-            update_seed(updated, seed, model, offsets)
+        # update_seed(updated, seeds, model, offsets)
+        seeds = updated
 
-            pred_mask = (updated.sigmoid() > logit(0.9)).detach().cpu().numpy()
-            true_mask = (labels > 0.5).cpu().numpy()
-            true_bg = np.logical_not(true_mask)
-            pred_bg = np.logical_not(pred_mask)
-            tp = (true_mask * pred_mask).sum()
-            fp = (true_bg * pred_mask).sum()
-            fn = (true_mask * pred_bg).sum()
-            tn = (true_bg * pred_bg).sum()
-            precision = 1.0 * tp / max(tp + fp, 1)
-            recall = 1.0 * tp / max(tp + fn, 1)
-            accuracy = 1.0 * (tp + tn) / (tp + tn + fp + fn)
-            print("loss: {:.2f}, iteration: {}, Accuracy: {:.2f}%, offset:{}".format(
-                loss.item(), iter, accuracy * 100, offsets))
+        pred_mask = (updated >= logit(0.9)).detach().cpu().numpy()
+        true_mask = (labels > 0.5).cpu().numpy()
+        true_bg = np.logical_not(true_mask)
+        pred_bg = np.logical_not(pred_mask)
+        tp = (true_mask & pred_mask).sum()
+        fp = (true_bg & pred_mask).sum()
+        fn = (true_mask & pred_bg).sum()
+        tn = (true_bg & pred_bg).sum()
+        precision = 1.0 * tp / max(tp + fp, 1)
+        recall = 1.0 * tp / max(tp + fn, 1)
+        accuracy = 1.0 * (tp + tn) / (tp + tn + fp + fn)
+        print("loss: {:.2f}, iteration: {}, Precision: {:.2f}%, Recall: {:.2f}%, Accuracy: {:.2f}%".format(
+            loss.item(), iter, precision*100, recall*100, accuracy * 100))
 
-            """根据最佳loss并且保存模型"""
-            if best_loss > loss.item():
-                best_loss = loss.item()
-                torch.save(model.state_dict(), os.path.join(args.save_path, 'ffn.pth'))
-                print('Model saved!')
+        """根据最佳loss并且保存模型"""
+        if best_loss > loss.item():
+            best_loss = loss.item()
+            torch.save(model.state_dict(), os.path.join(args.save_path, 'ffn.pth'))
+            print('Model saved!')
 
 
 if __name__ == "__main__":

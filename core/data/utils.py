@@ -85,24 +85,26 @@ def crop_and_pad(data, offset, crop_shape, target_shape=None):
     return cropped
 
 
-def get_example(image, targets, seed, shape, get_offsets):
+def get_example(loader, shape, get_offsets):
 
-    for off in get_offsets(seed):
-        predicted = crop_and_pad(seed, off, shape).unsqueeze(0)
-        patches = crop_and_pad(image, off, shape).unsqueeze(0)
-        labels = crop_and_pad(targets, off, shape).unsqueeze(0)
-        offset = off
+    while True:
+        for iter, (image, targets, seed, coor) in enumerate(loader):
+            for off in get_offsets(seed):
+                predicted = crop_and_pad(seed, off, shape).unsqueeze(0)
+                patches = crop_and_pad(image, off, shape).unsqueeze(0)
+                labels = crop_and_pad(targets, off, shape).unsqueeze(0)
+                offset = off
 
-        yield predicted, patches, labels, offset
+                yield predicted, patches, labels, offset
 
 
-def get_batch(image, targets, seed, batch_size, shape, get_offsets):
+def get_batch(loader, batch_size, shape, get_offsets):
     def _batch(iterable):
         for batch_vals in iterable:
           yield zip(*batch_vals)
 
     for seeds, patches, labels, offsets in _batch(six.moves.zip(
-        *[get_example(image, targets, seed, shape, get_offsets) for _
+        *[get_example(loader, shape, get_offsets) for _
             in range(batch_size)])):
 
         yield torch.cat(seeds, dim=0).float(), torch.cat(patches, dim=0).float(), \

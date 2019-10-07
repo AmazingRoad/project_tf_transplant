@@ -13,9 +13,9 @@ class ResBlock(nn.Module):
 
     def forward(self, x):
         conv0_out = self.conv0(F.relu(x))
-        conv1_out = self.conv1(conv0_out)
+        conv1_out = self.conv1(F.relu(conv0_out))
 
-        return conv1_out + F.relu(x)
+        return conv1_out + x
 
 
 class FFN(nn.Module):
@@ -25,7 +25,7 @@ class FFN(nn.Module):
 
         self.conv0 = nn.Conv3d(in_channels, mid_channels, kernel_size, padding=padding)
         self.conv1 = nn.Conv3d(mid_channels, mid_channels, kernel_size, padding=padding)
-        self.resblocks = nn.Sequential(*[ResBlock(mid_channels, mid_channels, kernel_size, padding) for i in range(depth)])
+        self.resblocks = nn.Sequential(*[ResBlock(mid_channels, mid_channels, kernel_size, padding) for i in range(1, depth)])
         self.conv3 = nn.Conv3d(mid_channels, out_channels, (1, 1, 1))
 
         self.input_size = np.array(input_size)
@@ -36,7 +36,7 @@ class FFN(nn.Module):
 
     def forward(self, x):
         conv0_out = self.conv0(x)
-        conv1_out = self.conv1(conv0_out)
+        conv1_out = self.conv1(F.relu(conv0_out))
         res_out = self.resblocks(conv1_out)
         logits = self.conv3(F.relu(res_out))
 
@@ -46,3 +46,4 @@ class FFN(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv3d):
                 nn.init.xavier_uniform_(m.weight)
+                nn.init.zeros_(m.bias)
