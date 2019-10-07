@@ -2,12 +2,12 @@ import argparse
 from collections import defaultdict
 import h5py
 import numpy as np
-import tiffile
+import tifffile
 import cv2
 
 parser = argparse.ArgumentParser('script to generate training data')
-parser.add_argument('--image', type=str, default='./data/ffn/images/raw_data_4_channel.tif', help='directory of images')
-parser.add_argument('--label', type=str, default='./data/ffn/labels/target_data.tif', help='directory of labels')
+parser.add_argument('--image', type=str, default='./data/ffn/images/raw_data_4_channel.tif', help='image data path')
+parser.add_argument('--label', type=str, default='./data/ffn/labels/target_data.tif', help='label data path')
 parser.add_argument('--save', type=str, default='data1.h5', help='save file name')
 parser.add_argument('--shape', type=list, default=[41, 41, 41], help='seed shape')
 parser.add_argument('--thr', type=list, default=[0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
@@ -110,8 +110,8 @@ def compute_partitions(seg_array, thresholds, lom_radius, min_size=10000):
 
 
 def run():
-    images = tiffile.TiffFile(args.image).asarray()
-    labels = tiffile.TiffFile(args.label).asarray()
+    images = tifffile.TiffFile(args.image).asarray()
+    labels = tifffile.TiffFile(args.label).asarray()
     images = np.array([cv2.cvtColor(im, cv2.COLOR_BGR2GRAY) for im in images])
     labels = np.array([cv2.cvtColor(label, cv2.COLOR_BGR2GRAY) for label in labels])
 

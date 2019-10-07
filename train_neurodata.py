@@ -20,10 +20,10 @@ parser.add_argument(
     help='Run in fully deterministic mode (at the cost of execution speed).'
 )
 
-parser.add_argument('-d', '--data', type=str, default='./data1.h5', help='training data')
+parser.add_argument('-d', '--data', type=str, default='./data.h5', help='training data')
 parser.add_argument('-b', '--batch_size', type=int, default=4, help='training batch size')
-parser.add_argument('--delta', default=(5, 5, 5), help='delta offset')
-parser.add_argument('--input_size', default=(31, 31, 31), help='input size')
+parser.add_argument('--delta', default=(8, 8, 8), help='delta offset')
+parser.add_argument('--input_size', default=(33, 33, 33), help='input size')
 parser.add_argument('--clip_grad_thr', type=float, default=0.7, help='grad clip threshold')
 parser.add_argument('--save_path', type=str, default='./model', help='model save path')
 parser.add_argument('--resume', type=str, default=None, help='resume training')
@@ -73,17 +73,27 @@ def run():
 
             updated = seeds + logits
             optimizer.zero_grad()
-            loss = F.binary_cross_entropy(updated.sigmoid(), labels, reduction='sum')
+            loss = F.binary_cross_entropy(updated.sigmoid(), labels)
             loss.backward()
             """梯度截断"""
             torch.nn.utils.clip_grad_norm(model.parameters(), args.clip_grad_thr)
-
             optimizer.step()
 
-            diff = (updated.sigmoid()-labels).detach().cpu().numpy()
-            accuracy = 1.0*(diff < 0.001).sum() / np.prod(labels.shape)
-            print("loss: {:.2f}, iteration: {}, Accuracy: {:.2f}%, offset:{}".format(loss.item(), iter, accuracy.item()*100, offsets))
             update_seed(updated, seed, model, offsets)
+
+            pred_mask = (updated.sigmoid() > logit(0.9)).detach().cpu().numpy()
+            true_mask = (labels > 0.5).cpu().numpy()
+            true_bg = np.logical_not(true_mask)
+            pred_bg = np.logical_not(pred_mask)
+            tp = (true_mask * pred_mask).sum()
+            fp = (true_bg * pred_mask).sum()
+            fn = (true_mask * pred_bg).sum()
+            tn = (true_bg * pred_bg).sum()
+            precision = 1.0 * tp / max(tp + fp, 1)
+            recall = 1.0 * tp / max(tp + fn, 1)
+            accuracy = 1.0 * (tp + tn) / (tp + tn + fp + fn)
+            print("loss: {:.2f}, iteration: {}, Accuracy: {:.2f}%, offset:{}".format(
+                loss.item(), iter, accuracy * 100, offsets))
 
             """根据最佳loss并且保存模型"""
             if best_loss > loss.item():
