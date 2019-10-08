@@ -115,7 +115,7 @@ def run():
                 best_loss = loss.item()
                 torch.save(model.state_dict(), os.path.join(args.save_path, 'ffn.pth'))
                 print('Precision: {:.2f}%, Recall: {:.2f}%, Accuracy: {:.2f}%, Model saved!'.format(
-                    precision * 100, recall * 100, accuracy * 10))
+                    precision * 100, recall * 100, accuracy * 100))
 
 
 if __name__ == "__main__":
