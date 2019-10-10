@@ -121,6 +121,10 @@ def run():
 
     totals = defaultdict(int)  # partition -> voxel count
     indices = defaultdict(list)  # partition -> [(vol_id, 1d index)]
+
+    # end = np.array(labels.shape) - m
+    # sel = [slice(s, e) for s, e in zip(m, end)]
+    # partitions = labels[tuple(sel)].copy()
     vol_shapes = partitions.shape
     uniques, counts = np.unique(partitions, return_counts=True)
     for val, cnt in zip(uniques, counts):
@@ -128,13 +132,13 @@ def run():
             continue
 
         totals[val] += cnt
-        indices[val].extend([flat_index for flat_index in np.flatnonzero(partitions == val)])
+        indices[val].extend([(0, flat_index) for flat_index in np.flatnonzero(partitions == val)])
 
     max_count = max(totals.values())
-    indices = np.concatenate([np.resize(np.random.permutation(v), max_count) for v in indices.values()], axis=0)
+    indices = np.concatenate([np.resize(np.random.permutation(v), (max_count, 2)) for v in indices.values()], axis=0)
     np.random.shuffle(indices)
     coor = []
-    for coord_idx in indices:
+    for i, coord_idx in indices:
         z, y, x = np.unravel_index(coord_idx, vol_shapes)
         coor.append([z+m[2], y+m[1], x+m[0]])
 

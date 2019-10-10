@@ -13,6 +13,7 @@ import numpy as np
 from core.models.ffn import FFN
 from core.data import BatchCreator
 import sys
+import h5py
 
 
 parser = argparse.ArgumentParser(description='Train a network.')
@@ -115,6 +116,16 @@ def run():
                 torch.save(model.state_dict(), os.path.join(args.save_path, 'ffn.pth'))
                 print('Precision: {:.2f}%, Recall: {:.2f}%, Accuracy: {:.2f}%, Model saved!'.format(
                     precision * 100, recall * 100, accuracy * 100))
+                im = images[0, 0, :, :, :] * 33 + 128
+                label = (labels[0, 0, :, :, :] > 0.5)
+                pred = (updated.sigmoid()[0, 0, :, :, :] > 0.5)
+                im = im.detach().cpu().numpy().astype(np.uint8)
+                label = label.detach().cpu().numpy().astype(np.uint8) * 255
+                pred = pred.detach().cpu().numpy().astype(np.uint8) * 255
+                with h5py.File('data/sample_{}.h5'.format(iter)) as f:
+                    f.create_dataset('image', data=im, compression='gzip')
+                    f.create_dataset('label', data=label, compression='gzip')
+                    f.create_dataset('pred', data=pred, compression='gzip')
 
 
 if __name__ == "__main__":
