@@ -88,7 +88,6 @@ def run():
             torch.nn.utils.clip_grad_value_(model.parameters(), args.clip_grad_thr)
             optimizer.step()
 
-            # update_seed(updated, seeds, model, offsets)
             seeds = updated
 
             pred_mask = (updated >= logit(0.9)).detach().cpu().numpy()
@@ -102,7 +101,7 @@ def run():
             precision = 1.0 * tp / max(tp + fp, 1)
             recall = 1.0 * tp / max(tp + fn, 1)
             accuracy = 1.0 * (tp + tn) / (tp + tn + fp + fn)
-            count = round(iter / len(train_loader) * 50)
+            count = round(1.0 * iter / len(train_loader) * 50)
             sys.stdout.write('[Epoch {}], {}/{}: [{}{}] loss: {:.4}, Precision: {:.2f}%, Recall: {:.2f}%, '
                              'Accuracy: {:.2f}%\r'.format(cnt, (iter + 1) * args.batch_size, len(train_loader),
                                                           '#' * count, ' ' * (50 - count), loss.item(), precision*100,
