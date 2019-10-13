@@ -19,10 +19,10 @@ import h5py
 parser = argparse.ArgumentParser(description='Train a network.')
 parser.add_argument('--deterministic', action='store_true',
     help='Run in fully deterministic mode (at the cost of execution speed).')
-parser.add_argument('-d', '--data', type=str, default='./data_google.h5', help='training data')
+parser.add_argument('-d', '--data', type=str, default='./data1.h5', help='training data')
 parser.add_argument('-b', '--batch_size', type=int, default=4, help='training batch size')
-parser.add_argument('--delta', default=(8, 8, 8), help='delta offset')
-parser.add_argument('--input_size', default=(33, 33, 33), help='input size')
+parser.add_argument('--delta', default=(5, 5, 5), help='delta offset')
+parser.add_argument('--input_size', default=(31, 31, 31), help='input size')
 parser.add_argument('--clip_grad_thr', type=float, default=0.7, help='grad clip threshold')
 parser.add_argument('--save_path', type=str, default='./model', help='model save path')
 parser.add_argument('--resume', type=str, default=None, help='resume training')
@@ -95,7 +95,7 @@ def run():
         torch.nn.utils.clip_grad_value_(model.parameters(), args.clip_grad_thr)
         optimizer.step()
 
-        seeds = updated.detach().cpu().numpy()
+        seeds[...] = updated.detach().cpu().numpy()
 
         pred_mask = (updated >= logit(0.9)).detach().cpu().numpy()
         true_mask = (labels > 0.5).cpu().numpy()
@@ -108,7 +108,7 @@ def run():
         precision = 1.0 * tp / max(tp + fp, 1)
         recall = 1.0 * tp / max(tp + fn, 1)
         accuracy = 1.0 * (tp + tn) / (tp + tn + fp + fn)
-        sys.stdout.write('[Iter_{}: offset: {}, loss: {:.4}, Precision: {:.2f}%, Recall: {:.2f}%, '
+        print('[Iter_{}: offset: {}, loss: {:.4}, Precision: {:.2f}%, Recall: {:.2f}%, '
                          'Accuracy: {:.2f}%]\r'.format(cnt, offsets, loss.item(), precision*100,
                                                        recall*100, accuracy * 100))
 

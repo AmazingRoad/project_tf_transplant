@@ -131,8 +131,13 @@ def get_batch(loader, batch_size, shape, get_offsets):
         *[get_example(loader, shape, get_offsets) for _
             in range(batch_size)])):
 
-        yield (np.concatenate(seeds), torch.cat(patches, dim=0).float(), \
+        batched_seeds = np.concatenate(seeds)
+
+        yield (batched_seeds, torch.cat(patches, dim=0).float(), \
               torch.cat(labels, dim=0).float(), offsets)
+
+        for i in range(batch_size):
+          seeds[i][:] = batched_seeds[i, ...]
 
 
 def update_seed(updated, seed, model, pos):
