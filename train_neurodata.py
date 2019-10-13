@@ -53,7 +53,7 @@ def run():
 
     """创建data loader"""
     train_dataset = BatchCreator(input_h5data, args.input_size, delta=args.delta, train=True)
-    train_loader = DataLoader(train_dataset, shuffle=True, num_workers=1, pin_memory=True)
+    train_loader = DataLoader(train_dataset, shuffle=True, num_workers=0, pin_memory=True)
 
     optimizer = optim.SGD(model.parameters(), lr=1e-3)
 
@@ -71,16 +71,17 @@ def run():
 
             t_curr = time.time()
             """正样本权重"""
-            pos_w = - torch.log((labels > 0.5).sum().float() / np.prod(labels.shape))
-            slice = seeds[:, :, seeds.shape[2] // 2, :, :].sigmoid()
+            pos_w = - torch.log(1e-3 + (labels > 0.5).sum().float() / np.prod(labels.shape))
+            slice = sigmoid(seeds[:, :, seeds.shape[2] // 2, :, :])
             seeds[:, :, seeds.shape[2] // 2, :, :] = slice
             labels = labels.cuda()
 
-            input_data = torch.cat([images, seeds], dim=1)
+            torch_seed = torch.from_numpy(seeds)
+            input_data = torch.cat([images, torch_seed], dim=1)
             input_data = Variable(input_data.cuda())
 
             logits = model(input_data)
-            updated = seeds.cuda() + logits
+            updated = torch_seed.cuda() + logits
 
             optimizer.zero_grad()
             loss = F.binary_cross_entropy_with_logits(updated, labels, pos_weight=pos_w)
@@ -89,7 +90,8 @@ def run():
             torch.nn.utils.clip_grad_value_(model.parameters(), args.clip_grad_thr)
             optimizer.step()
 
-            seeds = updated
+            # update_seed(updated, seed, model, offsets)
+            seeds = updated.detach().cpu().numpy()
 
             pred_mask = (updated >= logit(0.9)).detach().cpu().numpy()
             true_mask = (labels > 0.5).cpu().numpy()
@@ -104,7 +106,7 @@ def run():
             accuracy = 1.0 * (tp + tn) / (tp + tn + fp + fn)
             count = round(1.0 * iter / len(train_loader) * 50)
             sys.stdout.write('[Epoch {}], {}/{}: [{}{}] loss: {:.4}, Precision: {:.2f}%, Recall: {:.2f}%, '
-                             'Accuracy: {:.2f}%\r'.format(cnt, (iter + 1) * args.batch_size, len(train_loader),
+                             'Accuracy: {:.2f}%\r'.format(offsets, (iter + 1) * args.batch_size, len(train_loader),
                                                           '#' * count, ' ' * (50 - count), loss.item(), precision*100,
                                                           recall*100, accuracy * 100))
 
@@ -122,7 +124,7 @@ def run():
                 im = im.detach().cpu().numpy().astype(np.uint8)
                 label = label.detach().cpu().numpy().astype(np.uint8) * 255
                 pred = pred.detach().cpu().numpy().astype(np.uint8) * 255
-                with h5py.File('data/sample_{}.h5'.format(iter)) as f:
+                with h5py.File('data/sample_{}.h5'.format(iter), 'w') as f:
                     f.create_dataset('image', data=im, compression='gzip')
                     f.create_dataset('label', data=label, compression='gzip')
                     f.create_dataset('pred', data=pred, compression='gzip')

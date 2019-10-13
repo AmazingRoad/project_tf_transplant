@@ -55,10 +55,10 @@ class BatchCreator(data.Dataset):
         """解析数据"""
         for input_data in input:
             with h5py.File(input_data, 'r') as raw:
-                self.input_data.append((raw['image'].value.astype(np.float32)-128) / 33.0)
-                self.label_data.append(raw['label'].value)
-                self.coor.append(raw['coor'].value)
-                self.seed.append(logit(np.full(list(raw['image'].value.shape), 0.05, dtype=np.float32)))
+                self.input_data.append((raw['image'][()].astype(np.float32)-128) / 33.0)
+                self.label_data.append(raw['label'][()])
+                self.coor.append(raw['coor'][()].astype(np.uint8))
+                self.seed.append(logit(np.full(list(raw['image'][()].shape), 0.05, dtype=np.float32)))
 
     def __getitem__(self, idx):
         """根据记载的label坐标从250x250x250的立方中根据索引截取49x49x49的patch"""
@@ -73,9 +73,7 @@ class BatchCreator(data.Dataset):
         self.seed_patch = center_crop_and_pad(self.seed[self.data_idx], self.coor_patch, self.seed_shape)
         self.seed_patch[tuple(self.label_radii)] = logit(0.95)
 
-        return torch.from_numpy(self.image_patch).float(), \
-               torch.from_numpy(self.label_patch),\
-               torch.from_numpy(self.seed_patch), self.coor_patch
+        return self.image_patch, self.label_patch, self.seed_patch, self.coor_patch
 
     def __len__(self):
         return len(self.coor[self.data_idx])

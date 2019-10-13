@@ -25,6 +25,10 @@ OriginInfo = namedtuple('OriginInfo', ['start_zyx', 'iters', 'walltime_sec'])
 HaltInfo = namedtuple('HaltInfo', ['is_halt', 'extra_fetches'])
 
 
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+
 def make_seed(shape, pad=0.05, seed=0.95):
     """创建种子"""
     seed_array = np.full(list(shape), pad, dtype=np.float32)
@@ -109,12 +113,13 @@ def get_example(loader, shape, get_offsets):
 
     while True:
         for iter, (image, targets, seed, coor) in enumerate(loader):
+            seed = seed.numpy()
             for off in get_offsets(seed):
-                predicted = crop_and_pad(seed, off, shape).unsqueeze(0)
+                predicted = crop_and_pad(seed, off, shape)[np.newaxis, ...]
                 patches = crop_and_pad(image, off, shape).unsqueeze(0)
                 labels = crop_and_pad(targets, off, shape).unsqueeze(0)
                 offset = off
-
+                assert predicted.base is seed
                 yield predicted, patches, labels, offset
 
 
@@ -127,7 +132,7 @@ def get_batch(loader, batch_size, shape, get_offsets):
         *[get_example(loader, shape, get_offsets) for _
             in range(batch_size)])):
 
-        yield torch.cat(seeds, dim=0).float(), torch.cat(patches, dim=0).float(), \
+        yield np.concatenate(seeds), torch.cat(patches, dim=0).float(), \
               torch.cat(labels, dim=0).float(), offsets
 
 
