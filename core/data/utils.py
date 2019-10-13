@@ -617,20 +617,11 @@ class Canvas(object):
 
         prob_seed = expit(logit_seed)
         for _ in range(MAX_SELF_CONSISTENT_ITERS):
+            """网络inference"""
             prob, logits = self.predict(pos)
             break
 
-            # diff = np.average(np.abs(prob_seed - prob))
-            # if diff < self.options.consistency_threshold:
-            #     break
-
-            # prob_seed, logit_seed = prob, logits
-
-        # if self.halt_signaler.is_halt(fetches=fetches, pos=pos,
-        #                               orig_pos=start_pos,
-        #                               counters=self.counters):
-        #     logits[:] = np.float32(self.options.pad_value)
-
+        """更新seed"""
         sel = [slice(s, e) for s, e in zip(start, end)]
 
         # Bias towards oversegmentation by making it impossible to reverse
@@ -669,14 +660,13 @@ class Canvas(object):
             if self.seed[start_pos] < self.mov_thr:
                   break
 
-            # if not self.restrictor.is_valid_pos(pos):
-            #     continue
-
+            """根据移动后的坐标分割"""
             pred = self.update_at(pos)
             self._min_pos = np.minimum(self._min_pos, pos)
             self._max_pos = np.maximum(self._max_pos, pos)
             num_iters += 1
 
+            """更新移动策略"""
             self.movement_policy.update(pred, pos)
 
             assert np.all(pred.shape == self.input_size)
@@ -692,13 +682,11 @@ class Canvas(object):
 
                 count = round(1.0 * iter / len(self.seed_policy.coords) * 50)
 
-                if iter == 246:
-                    print('done')
-
                 sys.stdout.write('[ {}/{}: [{}{}]\r'.format(iter + 1, len(self.seed_policy.coords),
                                                             '#' * count, ' ' * (50 - count)))
                 iter += 1
 
+                """根据有效坐标计算slice"""
                 if not self.is_valid_pos(pos, ignore_move_threshold=True):
                   continue
 
@@ -710,6 +698,7 @@ class Canvas(object):
                     continue
 
                 seg_start = time.time()
+                """分割当前坐标cube"""
                 num_iters = self.segment_at(pos)
                 t_seg = time.time() - seg_start
 
@@ -722,6 +711,7 @@ class Canvas(object):
                         self.segmentation[pos] = -1
                     continue
 
+                """根据seed内容计算最后的分割图"""
                 sel = [slice(max(s, 0), e + 1) for s, e in zip(self._min_pos - self.input_size // 2, self._max_pos + self.input_size // 2)]
                 mask = self.seed[tuple(sel)] >= self.seg_thr
                 raw_segmented_voxels = np.sum(mask)
@@ -736,6 +726,7 @@ class Canvas(object):
                         self.segmentation[pos] = -1
                     continue
 
+                """每次不同目标通过id+1实现区分"""
                 self.max_id += 1
                 while self.max_id in self.origins:
                     self.max_id += 1

@@ -12,7 +12,6 @@ import torch.nn.functional as F
 import numpy as np
 from core.models.ffn import FFN
 from core.data import BatchCreator
-import sys
 import h5py
 
 
