@@ -110,17 +110,16 @@ def crop_and_pad(data, offset, crop_shape, target_shape=None):
 
 
 def get_example(loader, shape, get_offsets):
-
     while True:
-        for iter, (image, targets, seed, coor) in enumerate(loader):
-            seed = seed.numpy()
-            for off in get_offsets(seed):
-                predicted = crop_and_pad(seed, off, shape)[np.newaxis, ...]
-                patches = crop_and_pad(image, off, shape).unsqueeze(0)
-                labels = crop_and_pad(targets, off, shape).unsqueeze(0)
-                offset = off
-                assert predicted.base is seed
-                yield predicted, patches, labels, offset
+        iteration, (image, targets, seed, coor) = next(enumerate(loader))
+        seed = seed.numpy().copy()
+        for off in get_offsets(seed):
+            predicted = crop_and_pad(seed, off, shape)[np.newaxis, ...]
+            patches = crop_and_pad(image, off, shape).unsqueeze(0)
+            labels = crop_and_pad(targets, off, shape).unsqueeze(0)
+            offset = off
+            assert predicted.base is seed
+            yield predicted, patches, labels, offset
 
 
 def get_batch(loader, batch_size, shape, get_offsets):
@@ -132,8 +131,8 @@ def get_batch(loader, batch_size, shape, get_offsets):
         *[get_example(loader, shape, get_offsets) for _
             in range(batch_size)])):
 
-        yield np.concatenate(seeds), torch.cat(patches, dim=0).float(), \
-              torch.cat(labels, dim=0).float(), offsets
+        yield (np.concatenate(seeds), torch.cat(patches, dim=0).float(), \
+              torch.cat(labels, dim=0).float(), offsets)
 
 
 def update_seed(updated, seed, model, pos):
