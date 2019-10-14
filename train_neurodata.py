@@ -18,7 +18,7 @@ import h5py
 parser = argparse.ArgumentParser(description='Train a network.')
 parser.add_argument('--deterministic', action='store_true',
     help='Run in fully deterministic mode (at the cost of execution speed).')
-parser.add_argument('-d', '--data', type=str, default='./data1.h5', help='training data')
+parser.add_argument('-d', '--data', type=str, default='./data.h5', help='training data')
 parser.add_argument('-b', '--batch_size', type=int, default=4, help='training batch size')
 parser.add_argument('--delta', default=(5, 5, 5), help='delta offset')
 parser.add_argument('--input_size', default=(31, 31, 31), help='input size')
@@ -42,7 +42,7 @@ if not os.path.exists(args.save_path):
 
 def run():
     """创建模型"""
-    model = FFN(in_channels=2, out_channels=1, input_size=args.input_size, delta=args.delta).cuda()
+    model = FFN(in_channels=4, out_channels=1, input_size=args.input_size, delta=args.delta).cuda()
 
     if args.resume is not None:
         model.load_state_dict(torch.load(args.resume))
@@ -67,9 +67,6 @@ def run():
 
     while cnt < args.iter:
         cnt += 1
-        # for iter, (seeds, images, labels, offsets) in enumerate(
-        #         get_batch(train_loader, args.batch_size, args.input_size,
-        #                   partial(fixed_offsets, fov_moves=train_dataset.shifts))):
 
         seeds, images, labels, offsets = next(batch_it)
 

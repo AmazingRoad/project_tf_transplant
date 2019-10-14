@@ -3,7 +3,6 @@ from collections import defaultdict
 import h5py
 import numpy as np
 import tifffile
-import cv2
 
 parser = argparse.ArgumentParser('script to generate training data')
 parser.add_argument('--image', type=str, default='./train_raw_2.tif', help='image data path')
@@ -112,7 +111,7 @@ def compute_partitions(seg_array, thresholds, lom_radius, min_size=10000):
 def run():
     images = tifffile.TiffFile(args.image).asarray()
     labels = tifffile.TiffFile(args.label).asarray()
-    images = np.array([cv2.cvtColor(im, cv2.COLOR_BGR2GRAY) for im in images])
+    # images = np.array([cv2.cvtColor(im, cv2.COLOR_BGR2GRAY) for im in images])
     # labels = np.array([cv2.cvtColor(label, cv2.COLOR_BGR2GRAY) for label in labels])
 
     m = np.array([int(x/2) for x in args.shape])

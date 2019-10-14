@@ -65,15 +65,26 @@ def center_crop_and_pad(data, coor, target_shape):
     cropped = data[tuple(selector)]
 
     if target_shape is not None:
-        target_shape = np.array(target_shape)
-        delta = target_shape - cropped.shape
-        pre = delta // 2
-        post = delta - delta // 2
 
-        paddings = []  # no padding for batch
-        paddings.extend(zip(pre, post))
+        if len(cropped.shape) > 3:
+            target_shape = np.array(target_shape)
+            delta = target_shape - cropped.shape[:-1]
+            pre = delta // 2
+            post = delta - delta // 2
 
-        cropped = np.pad(cropped, paddings, mode='constant')
+            paddings = []  # no padding for batch
+            paddings.extend(zip(pre, post))
+            paddings.append((0, 0))
+            cropped = np.pad(cropped, paddings, mode='constant')
+        else:
+            target_shape = np.array(target_shape)
+            delta = target_shape - cropped.shape
+            pre = delta // 2
+            post = delta - delta // 2
+
+            paddings = []  # no padding for batch
+            paddings.extend(zip(pre, post))
+            cropped = np.pad(cropped, paddings, mode='constant')
 
     return cropped
 
@@ -115,7 +126,7 @@ def get_example(loader, shape, get_offsets):
         seed = seed.numpy().copy()
         for off in get_offsets(seed):
             predicted = crop_and_pad(seed, off, shape)[np.newaxis, ...]
-            patches = crop_and_pad(image, off, shape).unsqueeze(0)
+            patches = crop_and_pad(image.squeeze(), off, shape).unsqueeze(0)
             labels = crop_and_pad(targets, off, shape).unsqueeze(0)
             offset = off
             assert predicted.base is seed
