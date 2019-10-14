@@ -20,6 +20,9 @@ parser.add_argument('--deterministic', action='store_true',
     help='Run in fully deterministic mode (at the cost of execution speed).')
 parser.add_argument('-d', '--data', type=str, default='./data.h5', help='training data')
 parser.add_argument('-b', '--batch_size', type=int, default=4, help='training batch size')
+parser.add_argument('--lr', type=float, default=1e-3, help='training learning rate')
+parser.add_argument('--gamma', type=float, default=0.9, help='multiplicative factor of learning rate decay')
+parser.add_argument('--step', type=int, default=1e5, help='adjust learning rate every step')
 parser.add_argument('--delta', default=(5, 5, 5), help='delta offset')
 parser.add_argument('--input_size', default=(31, 31, 31), help='input size')
 parser.add_argument('--clip_grad_thr', type=float, default=0.7, help='grad clip threshold')
@@ -54,7 +57,8 @@ def run():
     train_dataset = BatchCreator(input_h5data, args.input_size, delta=args.delta, train=True)
     train_loader = DataLoader(train_dataset, shuffle=True, num_workers=0, pin_memory=True)
 
-    optimizer = optim.SGD(model.parameters(), lr=1e-3)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.step, gamma=args.gamma, last_epoch=-1)
 
     best_loss = np.inf
 
@@ -72,7 +76,7 @@ def run():
 
         t_curr = time.time()
         """正样本权重"""
-        pos_w = - torch.log(1e-3 + (labels > 0.5).sum().float() / np.prod(labels.shape))
+        # pos_w = - torch.log(1e-3 + (labels > 0.5).sum().float() / np.prod(labels.shape))
         slice = sigmoid(seeds[:, :, seeds.shape[2] // 2, :, :])
         seeds[:, :, seeds.shape[2] // 2, :, :] = slice
         labels = labels.cuda()
@@ -85,12 +89,11 @@ def run():
         updated = torch_seed.cuda() + logits
 
         optimizer.zero_grad()
-        loss = F.binary_cross_entropy_with_logits(updated, labels, pos_weight=pos_w)
+        loss = F.binary_cross_entropy_with_logits(updated, labels)
         loss.backward()
         """梯度截断"""
         torch.nn.utils.clip_grad_value_(model.parameters(), args.clip_grad_thr)
         optimizer.step()
-
         seeds[...] = updated.detach().cpu().numpy()
 
         pred_mask = (updated >= logit(0.9)).detach().cpu().numpy()
@@ -104,9 +107,10 @@ def run():
         precision = 1.0 * tp / max(tp + fp, 1)
         recall = 1.0 * tp / max(tp + fn, 1)
         accuracy = 1.0 * (tp + tn) / (tp + tn + fp + fn)
-        print('[Iter_{}: offset: {}, loss: {:.4}, Precision: {:.2f}%, Recall: {:.2f}%, '
-                         'Accuracy: {:.2f}%]\r'.format(cnt, offsets, loss.item(), precision*100,
-                                                       recall*100, accuracy * 100))
+        print('[Iter_{}:, loss: {:.4}, Precision: {:.2f}%, Recall: {:.2f}%, Accuracy: {:.2f}%]\r'.format(
+            cnt, loss.item(), precision*100, recall*100, accuracy * 100))
+
+        scheduler.step()
 
         """根据最佳loss并且保存模型"""
         if best_loss > loss.item() or t_curr - t_last > args.interval:
