@@ -23,6 +23,7 @@ parser.add_argument('-b', '--batch_size', type=int, default=4, help='training ba
 parser.add_argument('--lr', type=float, default=1e-3, help='training learning rate')
 parser.add_argument('--gamma', type=float, default=0.9, help='multiplicative factor of learning rate decay')
 parser.add_argument('--step', type=int, default=1e5, help='adjust learning rate every step')
+parser.add_argument('--depth', type=int, default=12, help='depth of ffn')
 parser.add_argument('--delta', default=(5, 5, 5), help='delta offset')
 parser.add_argument('--input_size', default=(31, 31, 31), help='input size')
 parser.add_argument('--clip_grad_thr', type=float, default=0.7, help='grad clip threshold')
@@ -45,7 +46,7 @@ if not os.path.exists(args.save_path):
 
 def run():
     """创建模型"""
-    model = FFN(in_channels=4, out_channels=1, input_size=args.input_size, delta=args.delta).cuda()
+    model = FFN(in_channels=4, out_channels=1, input_size=args.input_size, delta=args.delta, depth=args.depth).cuda()
 
     if args.resume is not None:
         model.load_state_dict(torch.load(args.resume))
@@ -92,7 +93,7 @@ def run():
         loss = F.binary_cross_entropy_with_logits(updated, labels)
         loss.backward()
         """梯度截断"""
-        torch.nn.utils.clip_grad_value_(model.parameters(), args.clip_grad_thr)
+        # torch.nn.utils.clip_grad_value_(model.parameters(), args.clip_grad_thr)
         optimizer.step()
         seeds[...] = updated.detach().cpu().numpy()
 
