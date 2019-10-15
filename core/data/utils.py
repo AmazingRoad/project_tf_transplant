@@ -14,6 +14,7 @@ from collections import namedtuple
 from collections import deque
 import time
 from torch.autograd import Variable
+import cv2
 
 
 MAX_SELF_CONSISTENT_ITERS = 32
@@ -345,8 +346,9 @@ class PolicyPeaks(BaseSeedPolicy):
         logging.info('peaks: starting')
 
         # Edge detection.
+        gray = np.array([cv2.cvtColor(im, cv2.COLOR_BGR2GRAY) for im in self.canvas.images])
         edges = ndimage.generic_gradient_magnitude(
-            self.canvas.images.astype(np.float32),
+            gray.astype(np.float32),
             ndimage.sobel)
 
         # Adaptive thresholding.
@@ -373,7 +375,7 @@ class PolicyPeaks(BaseSeedPolicy):
         np.random.seed(42)
         idxs = skimage.feature.peak_local_max(
             dt + np.random.random(dt.shape) * 1e-4,
-            indices=True, min_distance=3, threshold_abs=0, threshold_rel=0)
+            indices=True, min_distance=1, threshold_abs=0, threshold_rel=0)
         np.random.set_state(state)
 
         # After skimage upgrade to 0.13.0 peak_local_max returns peaks in
@@ -511,16 +513,16 @@ class Canvas(object):
     def __init__(self, model, images, size, delta, seg_thr, mov_thr, act_thr):
         self.model = model
         self.images = images
-        self.shape = images.shape
+        self.shape = images.shape[:-1]
         self.input_size = np.array(size)
         self.margin = np.array(size) // 2
         self.seg_thr = logit(seg_thr)
         self.mov_thr = logit(mov_thr)
         self.act_thr = logit(act_thr)
 
-        self.segmentation = np.zeros(images.shape, dtype=np.int32)
-        self.seed = np.zeros(images.shape, dtype=np.float32)
-        self.seg_prob = np.zeros(images.shape, dtype=np.uint8)
+        self.segmentation = np.zeros(self.shape, dtype=np.int32)
+        self.seed = np.zeros(self.shape, dtype=np.float32)
+        self.seg_prob = np.zeros(self.shape, dtype=np.uint8)
 
         self.seed_policy = None
         self.max_id = 0
@@ -593,11 +595,11 @@ class Canvas(object):
         assert np.all(start >= 0)
 
         # selector = [slice(s, e) for s, e in zip(start, end)]
-        images = self.images[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
+        images = self.images[start[0]:end[0], start[1]:end[1], start[2]:end[2], :].transpose(3, 0, 1, 2)
         seeds = self.seed[start[0]:end[0], start[1]:end[1], start[2]:end[2]].copy()
         init_prediction = np.isnan(seeds)
         seeds[init_prediction] = np.float32(logit(0.05))
-        images = torch.from_numpy(images).float().unsqueeze(0).unsqueeze(0)
+        images = torch.from_numpy(images).float().unsqueeze(0)
         seeds = torch.from_numpy(seeds).float().unsqueeze(0).unsqueeze(0)
 
         slice = seeds[:, :, seeds.shape[2] // 2, :, :].sigmoid()

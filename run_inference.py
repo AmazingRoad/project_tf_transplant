@@ -5,11 +5,12 @@ from core.models.ffn import FFN
 from core.data.utils import *
 
 parser = argparse.ArgumentParser(description='inference script')
-parser.add_argument('--data', type=str, default='./data1.h5', help='input images')
+parser.add_argument('--data', type=str, default='./data.h5', help='input images')
 parser.add_argument('--label', type=str, default='./pred.h5', help='input images')
 parser.add_argument('--model', type=str, default='./model/ffn.pth', help='path to ffn model')
 parser.add_argument('--delta', default=(5, 5, 5), help='delta offset')
 parser.add_argument('--input_size', default=(31, 31, 31), help='input size')
+parser.add_argument('--depth', type=int, default=16, help='depth of ffn')
 parser.add_argument('--seg_thr', type=float, default=0.6, help='input size')
 parser.add_argument('--mov_thr', type=float, default=0.9, help='input size')
 parser.add_argument('--act_thr', type=float, default=0.95, help='input size')
@@ -19,7 +20,7 @@ args = parser.parse_args()
 
 def run():
     """创建模型"""
-    model = FFN(in_channels=2, out_channels=1, input_size=args.input_size, delta=args.delta).cuda()
+    model = FFN(in_channels=4, out_channels=1, input_size=args.input_size, delta=args.delta, depth=args.depth).cuda()
 
     assert os.path.isfile(args.model)
 
