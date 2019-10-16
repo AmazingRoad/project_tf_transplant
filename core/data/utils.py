@@ -523,6 +523,7 @@ class Canvas(object):
         self.segmentation = np.zeros(self.shape, dtype=np.int32)
         self.seed = np.zeros(self.shape, dtype=np.float32)
         self.seg_prob = np.zeros(self.shape, dtype=np.uint8)
+        self.target_dic = {}
 
         self.seed_policy = None
         self.max_id = 0
@@ -748,6 +749,11 @@ class Canvas(object):
                 self.seg_prob[tuple(sel)][mask] = quantize_probability(expit(self.seed[tuple(sel)][mask]))
                 self.overlaps[self.max_id] = np.array([overlapped_ids, counts])
                 self.origins[self.max_id] = OriginInfo(pos, num_iters, t_seg)
+                max_value = self.segmentation.max()
+                self.segmentation[self.segmentation == -1] = 0
+                self.segmentation = self.segmentation * (1.0 * 255 / max_value)
+                self.target_dic[self.max_id] = self.segmentation.astype(np.uint8)
+                self.segmentation = np.zeros(self.shape, dtype=np.int32)
 
         except RuntimeError:
             return True

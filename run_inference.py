@@ -37,15 +37,21 @@ def run():
     """开始分割"""
     canva.segment_all()
     """获取结果"""
-    result = canva.segmentation
-    """存储结果"""
-    max_value = result.max()
-    indice, count = np.unique(result, return_counts=True)
-    result[result == -1] = 0
-    result = result*(1.0 * 255/max_value)
+    # result = canva.segmentation
+    # """存储结果"""
+    # max_value = result.max()
+    # indice, count = np.unique(result, return_counts=True)
+    # result[result == -1] = 0
+    # result = result*(1.0 * 255/max_value)
+    rlt_key = []
+    rlt_val = []
+    result = canva.target_dic
     with h5py.File(args.label, 'w') as g:
-        g.create_dataset('raw', data=result.astype(np.uint8), compression='gzip')
-    print('label: {}, number: {}'.format(indice, count))
+        for key, value in result.items():
+            rlt_key.append(key)
+            rlt_val.append((value > 0).sum())
+            g.create_dataset('id_{}'.format(key), data=value.astype(np.uint8), compression='gzip')
+    print('label: {}, number: {}'.format(rlt_key, rlt_val))
 
 
 if __name__ == '__main__':
