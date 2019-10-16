@@ -8,7 +8,7 @@ parser = argparse.ArgumentParser('script to generate training data')
 parser.add_argument('--image', type=str, default='./train_raw_2.tif', help='image data path')
 parser.add_argument('--label', type=str, default='./target_data_raw2_label.tif', help='label data path')
 parser.add_argument('--save', type=str, default='data.h5', help='save file name')
-parser.add_argument('--shape', type=list, default=[41, 41, 41], help='seed shape')
+parser.add_argument('--shape', type=list, default=[37, 37, 37], help='seed shape')
 parser.add_argument('--thr', type=list, default=[0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
 parser.add_argument('--min_size', type=int, default=1000)
 
