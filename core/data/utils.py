@@ -14,6 +14,7 @@ from collections import namedtuple
 from collections import deque
 import time
 from torch.autograd import Variable
+import executor
 import cv2
 
 
@@ -520,6 +521,7 @@ class Canvas(object):
         self.mov_thr = logit(mov_thr)
         self.act_thr = logit(act_thr)
 
+        self._exec_client_id = None
         self.segmentation = np.zeros(self.shape, dtype=np.int32)
         self.seed = np.zeros(self.shape, dtype=np.float32)
         self.seg_prob = np.zeros(self.shape, dtype=np.uint8)
@@ -533,7 +535,24 @@ class Canvas(object):
 
         self.movement_policy = FaceMaxMovementPolicy(self, deltas=delta, score_threshold=self.mov_thr)
 
+        exec_cls = executor.ThreadingBatchExecutor
+
+        self.executor = exec_cls(self.model, 1)
+        self.executor.start_server()
+
         self.reset_state((0, 0, 0))
+
+    def __del__(self):
+        self.stop_executor()
+
+    def stop_executor(self):
+        """Shuts down the executor.
+
+        No-op when no executor is active.
+        """
+        if self.executor is not None:
+            self.executor.stop_server()
+            self.executor = None
 
     def init_seed(self, pos):
         """Reinitiailizes the object mask with a seed.
@@ -555,6 +574,18 @@ class Canvas(object):
 
         self._min_pos = np.array(start_pos)
         self._max_pos = np.array(start_pos)
+        self._register_client()
+
+    def _register_client(self):
+        if self._exec_client_id is None:
+            self._exec_client_id = self.executor.start_client()
+            logging.info('Registered as client %d.', self._exec_client_id)
+
+    def _deregister_client(self):
+        if self._exec_client_id is not None:
+            logging.info('Deregistering client %d', self._exec_client_id)
+            self.executor.finish_client(self._exec_client_id)
+            self._exec_client_id = None
 
     def is_valid_pos(self, pos, ignore_move_threshold=False):
         """Returns True if segmentation should be attempted at the given position.
@@ -600,18 +631,18 @@ class Canvas(object):
         seeds = self.seed[start[0]:end[0], start[1]:end[1], start[2]:end[2]].copy()
         init_prediction = np.isnan(seeds)
         seeds[init_prediction] = np.float32(logit(0.05))
-        images = torch.from_numpy(images).float().unsqueeze(0)
-        seeds = torch.from_numpy(seeds).float().unsqueeze(0).unsqueeze(0)
+        images = torch.from_numpy(images).float()
+        seeds = torch.from_numpy(seeds).float().unsqueeze(0)
 
-        slice = seeds[:, :, seeds.shape[2] // 2, :, :].sigmoid()
-        seeds[:, :, seeds.shape[2] // 2, :, :] = slice
+        slice = seeds[:, seeds.shape[2] // 2, :, :].sigmoid()
+        seeds[:, seeds.shape[2] // 2, :, :] = slice
 
-        input_data = torch.cat([images, seeds], dim=1)
-        input_data = Variable(input_data.cuda())
-
-        logits = self.model(input_data)
-        updated = (seeds.cuda() + logits).detach().cpu().numpy()
-        # update_seed(updated, self.seed, self.model, pos)
+        # input_data = torch.cat([images, seeds], dim=1)
+        # input_data = Variable(input_data.cuda())
+        #
+        # logits = self.model(input_data)
+        # updated = (seeds.cuda() + logits).detach().cpu().numpy()
+        updated = self.executor.predict(self._exec_client_id, seeds, images)
 
         prob = expit(updated)
         return np.squeeze(prob), np.squeeze(updated)
