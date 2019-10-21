@@ -17,7 +17,7 @@ from torch.autograd import Variable
 import executor
 import cv2
 
-
+np.seterr(divide='ignore',invalid='ignore')
 MAX_SELF_CONSISTENT_ITERS = 32
 HALT_SILENT = 0
 PRINT_HALTS = 1
@@ -96,7 +96,7 @@ def crop_and_pad(data, offset, crop_shape, target_shape=None):
     # Spatial dimensions only. All vars in zyx.
     shape = np.array(data.shape[1:])
     crop_shape = np.array(crop_shape)
-    offset = np.array(offset[::-1])
+    offset = np.array(offset)
 
     start = shape // 2 - crop_shape // 2 + offset
     end = start + crop_shape
@@ -128,7 +128,7 @@ def get_example(loader, shape, get_offsets):
         seed = seed.numpy().copy()
         for off in get_offsets(seed):
             predicted = crop_and_pad(seed, off, shape)[np.newaxis, ...]
-            patches = crop_and_pad(image.squeeze(), off, shape).unsqueeze(0)
+            patches = crop_and_pad(image, off, shape).unsqueeze(0)
             labels = crop_and_pad(targets, off, shape).unsqueeze(0)
             offset = off
             assert predicted.base is seed
@@ -323,8 +323,11 @@ def get_scored_move_offsets(deltas, prob_map, threshold=0.9):
             score = face_prob[face_pos]
 
             # Only move if activation crosses threshold.
-            if score < threshold:
-                continue
+            try:
+                if score < threshold:
+                    continue
+            except RuntimeWarning:
+                print('done')
 
             # Convert within-face position to be relative vs the center of the face.
             relative_pos = [face_pos[0] - shape[0] // 2, face_pos[1] - shape[1] // 2]
@@ -347,7 +350,8 @@ class PolicyPeaks(BaseSeedPolicy):
         logging.info('peaks: starting')
 
         # Edge detection.
-        gray = np.array([cv2.cvtColor(im, cv2.COLOR_BGR2GRAY) for im in self.canvas.images])
+        # gray = np.array([cv2.cvtColor(im, cv2.COLOR_BGR2GRAY) for im in self.canvas.images])
+        gray = self.canvas.images
         edges = ndimage.generic_gradient_magnitude(
             gray.astype(np.float32),
             ndimage.sobel)
@@ -376,7 +380,7 @@ class PolicyPeaks(BaseSeedPolicy):
         np.random.seed(42)
         idxs = skimage.feature.peak_local_max(
             dt + np.random.random(dt.shape) * 1e-4,
-            indices=True, min_distance=1, threshold_abs=0, threshold_rel=0)
+            indices=True, min_distance=3, threshold_abs=0, threshold_rel=0)
         np.random.set_state(state)
 
         # After skimage upgrade to 0.13.0 peak_local_max returns peaks in
@@ -514,7 +518,7 @@ class Canvas(object):
     def __init__(self, model, images, size, delta, seg_thr, mov_thr, act_thr):
         self.model = model
         self.images = images
-        self.shape = images.shape[:-1]
+        self.shape = images.shape
         self.input_size = np.array(size)
         self.margin = np.array(size) // 2
         self.seg_thr = logit(seg_thr)
@@ -600,8 +604,11 @@ class Canvas(object):
         """
 
         if not ignore_move_threshold:
-            if self.seed[pos] < self.mov_thr:
-                return False
+            try:
+                if self.seed[pos] < self.mov_thr:
+                    return False
+            except RuntimeWarning:
+                print("done")
 
         # Not enough image context?
         np_pos = np.array(pos)
@@ -627,11 +634,11 @@ class Canvas(object):
         assert np.all(start >= 0)
 
         # selector = [slice(s, e) for s, e in zip(start, end)]
-        images = self.images[start[0]:end[0], start[1]:end[1], start[2]:end[2], :].transpose(3, 0, 1, 2)
+        images = self.images[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
         seeds = self.seed[start[0]:end[0], start[1]:end[1], start[2]:end[2]].copy()
         init_prediction = np.isnan(seeds)
         seeds[init_prediction] = np.float32(logit(0.05))
-        images = torch.from_numpy(images).float()
+        images = torch.from_numpy(images).float().unsqueeze(0)
         seeds = torch.from_numpy(seeds).float().unsqueeze(0)
 
         slice = seeds[:, seeds.shape[2] // 2, :, :].sigmoid()
@@ -674,16 +681,18 @@ class Canvas(object):
         th_max = logit(0.5)
         old_seed = self.seed[tuple(sel)]
 
-        if np.mean(logits >= self.mov_thr) > 0:
-            # Because (x > NaN) is always False, this mask excludes positions that
-            # were previously uninitialized (i.e. set to NaN in old_seed).
-            try:
-                old_err = np.seterr(invalid='ignore')
-                mask = ((old_seed < th_max) & (logits > old_seed))
-            finally:
-                np.seterr(**old_err)
-            logits[mask] = old_seed[mask]
-
+        try:
+            if np.mean(logits >= self.mov_thr) > 0:
+                # Because (x > NaN) is always False, this mask excludes positions that
+                # were previously uninitialized (i.e. set to NaN in old_seed).
+                try:
+                    old_err = np.seterr(invalid='ignore')
+                    mask = ((old_seed < th_max) & (logits > old_seed))
+                finally:
+                    np.seterr(**old_err)
+                logits[mask] = old_seed[mask]
+        except RuntimeWarning:
+            print('pne')
         # Update working space.
         self.seed[tuple(sel)] = logits
 
@@ -780,11 +789,11 @@ class Canvas(object):
                 self.seg_prob[tuple(sel)][mask] = quantize_probability(expit(self.seed[tuple(sel)][mask]))
                 self.overlaps[self.max_id] = np.array([overlapped_ids, counts])
                 self.origins[self.max_id] = OriginInfo(pos, num_iters, t_seg)
-                max_value = self.segmentation.max()
-                self.segmentation[self.segmentation == -1] = 0
-                self.segmentation = self.segmentation * (1.0 * 255 / max_value)
-                self.target_dic[self.max_id] = self.segmentation.astype(np.uint8)
-                self.segmentation = np.zeros(self.shape, dtype=np.int32)
+                # max_value = self.segmentation.max()
+                # self.segmentation[self.segmentation == -1] = 0
+                # self.segmentation = self.segmentation * (1.0 * 255 / max_value)
+                # self.target_dic[self.max_id] = self.segmentation.astype(np.uint8)
+                # self.segmentation = np.zeros(self.shape, dtype=np.int32)
 
         except RuntimeError:
             return True

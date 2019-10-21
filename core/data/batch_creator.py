@@ -64,7 +64,7 @@ class BatchCreator(data.Dataset):
         """根据记载的label坐标从250x250x250的立方中根据索引截取49x49x49的patch"""
         self.coor_patch = self.coor[self.data_idx][idx]
 
-        self.image_patch = center_crop_and_pad(self.input_data[self.data_idx], self.coor_patch, self.seed_shape).transpose(3, 0, 1, 2)
+        self.image_patch = center_crop_and_pad(self.input_data[self.data_idx], self.coor_patch, self.seed_shape)
         self.label_patch = center_crop_and_pad(self.label_data[self.data_idx], self.coor_patch, self.seed_shape)
         """保证中心为当前label"""
         self.label_patch = np.logical_and(self.label_patch > 0, np.equal(self.label_patch, self.label_patch[tuple(self.label_radii)]))
