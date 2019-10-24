@@ -13,9 +13,11 @@ import weakref
 from collections import namedtuple
 from collections import deque
 import time
-from torch.autograd import Variable
+import os
 import executor
-import cv2
+import tempfile
+import shutil
+
 
 np.seterr(divide='ignore',invalid='ignore')
 MAX_SELF_CONSISTENT_ITERS = 32
@@ -25,6 +27,76 @@ HALT_VERBOSE = 2
 
 OriginInfo = namedtuple('OriginInfo', ['start_zyx', 'iters', 'walltime_sec'])
 HaltInfo = namedtuple('HaltInfo', ['is_halt', 'extra_fetches'])
+
+
+def unalign_origins(origins, canvas_corner):
+    out_origins = dict()
+    for key, value in origins.items():
+        zyx = np.array(value.start_zyx) + canvas_corner
+        zyx = zyx[:, np.newaxis].squeeze()
+        zyx -= canvas_corner
+        out_origins[key] = value._replace(start_zyx=tuple(zyx))
+    return out_origins
+
+
+def reduce_id_bits(segmentation):
+    """Reduces the number of bits used for IDs.
+
+    Assumes that one additional ID beyond the max of 'segmentation' is necessary
+    (used by GALA to mark boundary areas).
+
+    Args:
+    segmentation: ndarray of int type
+
+    Returns:
+    segmentation ndarray converted to minimal uint type large enough to keep
+    all the IDs.
+    """
+    max_id = segmentation.max()
+    if max_id <= np.iinfo(np.uint8).max:
+        return segmentation.astype(np.uint8)
+    elif max_id <= np.iinfo(np.uint16).max:
+        return segmentation.astype(np.uint16)
+    elif max_id <= np.iinfo(np.uint32).max:
+        return segmentation.astype(np.uint32)
+
+
+def atomic_file(path, mode='w+b'):
+    """Atomically saves data to a target path.
+
+    Any existing data at the target path will be overwritten.
+
+    Args:
+    path: target path at which to save file
+    mode: optional mode string
+
+    Yields:
+    file-like object
+    """
+    with tempfile.NamedTemporaryFile(mode=mode) as tmp:
+        # yield tmp
+        tmp.flush()
+        # Necessary when the destination is on CNS.
+        shutil.copy(tmp.name, '%s.tmp' % path)
+    os.rename('%s.tmp' % path, path)
+
+
+def save_subvolume(labels, origins, output_path, **misc_items):
+    """Saves an FFN subvolume.
+
+    Args:
+    labels: 3d zyx number array with the segment labels
+    origins: dictionary mapping segment ID to origin information
+    output_path: path at which to save the segmentation in the form
+        of a .npz file
+    **misc_items: (optional) additional values to save
+        in the output file
+    """
+    seg = reduce_id_bits(labels)
+    path = os.path.dirname(output_path)
+    if not os.path.exists(path):
+        os.makedirs(path)
+    np.save(output_path, seg)
 
 
 def sigmoid(x):
@@ -323,11 +395,8 @@ def get_scored_move_offsets(deltas, prob_map, threshold=0.9):
             score = face_prob[face_pos]
 
             # Only move if activation crosses threshold.
-            try:
-                if score < threshold:
-                    continue
-            except RuntimeWarning:
-                print('done')
+            if score < threshold:
+                continue
 
             # Convert within-face position to be relative vs the center of the face.
             relative_pos = [face_pos[0] - shape[0] // 2, face_pos[1] - shape[1] // 2]
@@ -513,6 +582,85 @@ class FaceMaxMovementPolicy(BaseMovementPolicy):
               self.scored_coords.append((score, coord))
 
 
+class MovementRestrictor(object):
+    """Restricts the movement of the FFN FoV."""
+
+    def __init__(self, mask=None, shift_mask=None, shift_mask_fov=None,
+                 shift_mask_threshold=4, shift_mask_scale=1, seed_mask=None):
+        """Initializes the restrictor.
+
+        Args:
+          mask: 3d ndarray-like of shape (z, y, x); positive values indicate voxels
+              that are not going to be segmented
+          shift_mask: 4d ndarray-like of shape (2, z, y, x) representing a 2d shift
+              vector field
+          shift_mask_fov: bounding_box.BoundingBox around large shifts in which to
+              restrict movement.  BoundingBox specified as XYZ, start can be
+              negative.
+          shift_mask_threshold: if any component of the shift vector exceeds this
+              value within the FoV, the location will not be segmented
+          shift_mask_scale: an integer factor specifying how much larger the pixels
+              of the shift mask are compared to the data set processed by the FFN
+        """
+        self.mask = mask
+        self.seed_mask = seed_mask
+
+        self._shift_mask_scale = shift_mask_scale
+        self.shift_mask = None
+        if shift_mask is not None:
+            self.shift_mask = (np.max(np.abs(shift_mask), axis=0) >=
+                               shift_mask_threshold)
+
+            assert shift_mask_fov is not None
+            self._shift_mask_fov_pre_offset = shift_mask_fov.start[::-1]
+            self._shift_mask_fov_post_offset = shift_mask_fov.end[::-1] - 1
+
+    def is_valid_seed(self, pos):
+        """Checks whether a given position is a valid seed point.
+
+        Args:
+          pos: position within the dataset as (z, y, x)
+
+        Returns:
+          True iff location is a valid seed
+        """
+        if self.seed_mask is not None and self.seed_mask[pos]:
+            return False
+
+        return True
+
+    def is_valid_pos(self, pos):
+        """Checks whether a given position should be segmented.
+
+        Args:
+          pos: position within the dataset as (z, y, x)
+
+        Returns:
+          True iff location should be segmented
+        """
+
+        # Location masked?
+        if self.mask is not None and self.mask[pos]:
+            return False
+
+        if self.shift_mask is not None:
+            np_pos = np.array(pos)
+            fov_low = np.maximum(np_pos + self._shift_mask_fov_pre_offset, 0)
+            fov_high = np_pos + self._shift_mask_fov_post_offset
+            start = fov_low // self._shift_mask_scale
+            end = fov_high // self._shift_mask_scale
+
+            # Do not allow movement through highly distorted areas, which often
+            # result in merge errors. In the simplest case, the distortion magnitude
+            # is quantified with a patch-based cross-correlation map.
+            if np.any(self.shift_mask[fov_low[0]:(fov_high[0] + 1),
+                      start[1]:(end[1] + 1),
+                      start[2]:(end[2] + 1)]):
+                return False
+
+        return True
+
+
 class Canvas(object):
 
     def __init__(self, model, images, size, delta, seg_thr, mov_thr, act_thr):
@@ -538,6 +686,7 @@ class Canvas(object):
         self.overlaps = {}  # (ids, number overlapping voxels)
 
         self.movement_policy = FaceMaxMovementPolicy(self, deltas=delta, score_threshold=self.mov_thr)
+        self.restrictor = MovementRestrictor()
 
         exec_cls = executor.ThreadingBatchExecutor
 
@@ -604,11 +753,8 @@ class Canvas(object):
         """
 
         if not ignore_move_threshold:
-            try:
-                if self.seed[pos] < self.mov_thr:
-                    return False
-            except RuntimeWarning:
-                print("done")
+            if self.seed[pos] < self.mov_thr:
+                return False
 
         # Not enough image context?
         np_pos = np.array(pos)
@@ -657,7 +803,6 @@ class Canvas(object):
     def update_at(self, pos):
         """Updates object mask prediction at a specific position.
         """
-        global old_err
         off = self.input_size // 2  # zyx
 
         start = np.array(pos) - off
@@ -681,18 +826,16 @@ class Canvas(object):
         th_max = logit(0.5)
         old_seed = self.seed[tuple(sel)]
 
-        try:
-            if np.mean(logits >= self.mov_thr) > 0:
-                # Because (x > NaN) is always False, this mask excludes positions that
-                # were previously uninitialized (i.e. set to NaN in old_seed).
-                try:
-                    old_err = np.seterr(invalid='ignore')
-                    mask = ((old_seed < th_max) & (logits > old_seed))
-                finally:
-                    np.seterr(**old_err)
-                logits[mask] = old_seed[mask]
-        except RuntimeWarning:
-            print('pne')
+        if np.mean(logits >= self.mov_thr) > 0:
+            # Because (x > NaN) is always False, this mask excludes positions that
+            # were previously uninitialized (i.e. set to NaN in old_seed).
+            try:
+                old_err = np.seterr(invalid='ignore')
+                mask = ((old_seed < th_max) & (logits > old_seed))
+            finally:
+                np.seterr(**old_err)
+            logits[mask] = old_seed[mask]
+
         # Update working space.
         self.seed[tuple(sel)] = logits
 
@@ -714,6 +857,9 @@ class Canvas(object):
             if self.seed[start_pos] < self.mov_thr:
                   break
 
+            if not self.restrictor.is_valid_pos(pos):
+                continue
+
             """根据移动后的坐标分割"""
             pred = self.update_at(pos)
             self._min_pos = np.minimum(self._min_pos, pos)
@@ -731,6 +877,7 @@ class Canvas(object):
         self.seed_policy = PolicyPeaks(self)
         mbd = np.array([1, 1, 1])
         iter = 0
+
         try:
             for pos in next(self.seed_policy):
 
@@ -741,8 +888,10 @@ class Canvas(object):
                 iter += 1
 
                 """根据有效坐标计算slice"""
-                if not self.is_valid_pos(pos, ignore_move_threshold=True):
-                  continue
+                if not (self.is_valid_pos(pos, ignore_move_threshold=True)
+                        and self.restrictor.is_valid_pos(pos)
+                        and self.restrictor.is_valid_seed(pos)):
+                    continue
 
                 low = np.array(pos) - mbd
                 high = np.array(pos) + mbd + 1
@@ -766,8 +915,10 @@ class Canvas(object):
                     continue
 
                 """根据seed内容计算最后的分割图"""
+                id_mask = np.zeros(self.shape, dtype=np.int32)
                 sel = [slice(max(s, 0), e + 1) for s, e in zip(self._min_pos - self.input_size // 2, self._max_pos + self.input_size // 2)]
                 mask = self.seed[tuple(sel)] >= self.seg_thr
+                id_mask[tuple(sel)][mask] = self.max_id + 1
                 raw_segmented_voxels = np.sum(mask)
                 overlapped_ids, counts = np.unique(self.segmentation[tuple(sel)][mask], return_counts=True)
                 valid = overlapped_ids > 0
@@ -789,11 +940,7 @@ class Canvas(object):
                 self.seg_prob[tuple(sel)][mask] = quantize_probability(expit(self.seed[tuple(sel)][mask]))
                 self.overlaps[self.max_id] = np.array([overlapped_ids, counts])
                 self.origins[self.max_id] = OriginInfo(pos, num_iters, t_seg)
-                # max_value = self.segmentation.max()
-                # self.segmentation[self.segmentation == -1] = 0
-                # self.segmentation = self.segmentation * (1.0 * 255 / max_value)
-                # self.target_dic[self.max_id] = self.segmentation.astype(np.uint8)
-                # self.segmentation = np.zeros(self.shape, dtype=np.int32)
+                self.target_dic[self.max_id] = id_mask
 
         except RuntimeError:
             return True

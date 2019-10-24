@@ -5,9 +5,9 @@ from core.models.ffn import FFN
 from core.data.utils import *
 
 parser = argparse.ArgumentParser(description='inference script')
-parser.add_argument('--data', type=str, default='./google_train_data_49_49_49.h5', help='input images')
+parser.add_argument('--data', type=str, default='./data.h5', help='input images')
 parser.add_argument('--label', type=str, default='./pred.h5', help='input images')
-parser.add_argument('--model', type=str, default='./model/google_model.pth', help='path to ffn model')
+parser.add_argument('--model', type=str, default='./model/ffn.pth', help='path to ffn model')
 parser.add_argument('--delta', default=(8, 8, 8), help='delta offset')
 parser.add_argument('--input_size', default=(33, 33, 33), help='input size')
 parser.add_argument('--depth', type=int, default=12, help='depth of ffn')
@@ -30,31 +30,25 @@ def run():
     """读取数据"""
     with h5py.File(args.data, 'r') as f:
         images = (f['image'][()].astype(np.float32) - 128) / 33
-        # labels = g['label'].value
 
     """创建分割实例"""
     canva = Canvas(model, images, args.input_size, args.delta, args.seg_thr, args.mov_thr, args.act_thr)
     """开始分割"""
     canva.segment_all()
-    """获取结果"""
-    result = canva.segmentation
-    """存储结果"""
-    max_value = result.max()
-    indice, count = np.unique(result, return_counts=True)
-    result[result == -1] = 0
-    result = result*(1.0 * 255/max_value)
-    # rlt_key = []
-    # rlt_val = []
-    # result = canva.target_dic
-    # with h5py.File(args.label, 'w') as g:
-    #     for key, value in result.items():
-    #         rlt_key.append(key)
-    #         rlt_val.append((value > 0).sum())
-    #         g.create_dataset('id_{}'.format(key), data=value.astype(np.uint8), compression='gzip')
-    # print('label: {}, number: {}'.format(rlt_key, rlt_val))
-    with h5py.File(args.label, 'w') as g:
-        g.create_dataset('raw', data=result.astype(np.uint8), compression='gzip')
-    print('label: {}, number: {}'.format(indice, count))
+    canva.segmentation[canva.segmentation < 0] = 0
+    # Save segmentation results. Reduce # of bits per item if possible.
+    save_subvolume(
+        canva.segmentation,
+        unalign_origins(canva.origins, np.array((0, 0, 0))),
+        'result/pred',
+        overlaps=canva.overlaps)
+    id, count = np.unique(canva.segmentation, return_counts=True)
+    with h5py.File('pred.h5', 'w') as g:
+        g.create_dataset('label', data=canva.segmentation, compression='gzip')
+    with h5py.File('pred_all.h5', 'w') as g:
+        for idx in range(len(canva.target_dic)):
+            g.create_dataset('label_{}'.format(idx+1), data=canva.target_dic[idx+1], compression='gzip')
+    print("id:{}, count:{}".format(id, count))
 
 
 if __name__ == '__main__':

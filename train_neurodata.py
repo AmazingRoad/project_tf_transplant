@@ -17,7 +17,7 @@ from core.data import BatchCreator
 parser = argparse.ArgumentParser(description='Train a network.')
 parser.add_argument('--deterministic', action='store_true',
     help='Run in fully deterministic mode (at the cost of execution speed).')
-parser.add_argument('-d', '--data', type=str, default='./google_train_data_49_49_49.h5', help='training data')
+parser.add_argument('-d', '--data', type=str, default='./data.h5', help='training data')
 parser.add_argument('-b', '--batch_size', type=int, default=4, help='training batch size')
 parser.add_argument('--lr', type=float, default=1e-3, help='training learning rate')
 parser.add_argument('--gamma', type=float, default=0.9, help='multiplicative factor of learning rate decay')
@@ -27,7 +27,7 @@ parser.add_argument('--delta', default=(8, 8, 8), help='delta offset')
 parser.add_argument('--input_size', default=(33, 33, 33), help='input size')
 parser.add_argument('--clip_grad_thr', type=float, default=0.7, help='grad clip threshold')
 parser.add_argument('--save_path', type=str, default='./model', help='model save path')
-parser.add_argument('--resume', type=str, default='model/google_model.pth', help='resume training')
+parser.add_argument('--resume', type=str, default=None, help='resume training')
 parser.add_argument('--interval', type=int, default=120, help='How often to save model (in seconds).')
 parser.add_argument('--iter', type=int, default=1e100, help='training iteration')
 
@@ -58,7 +58,7 @@ def run():
     train_loader = DataLoader(train_dataset, shuffle=True, num_workers=0, pin_memory=True)
 
     optimizer = optim.SGD(model.parameters(), lr=args.lr)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.step, gamma=args.gamma, last_epoch=-1)
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.step, gamma=args.gamma, last_epoch=-1)
 
     best_loss = np.inf
 
@@ -92,7 +92,7 @@ def run():
         loss = F.binary_cross_entropy_with_logits(updated, labels)
         loss.backward()
         """梯度截断"""
-        # torch.nn.utils.clip_grad_value_(model.parameters(), args.clip_grad_thr)
+        torch.nn.utils.clip_grad_value_(model.parameters(), args.clip_grad_thr)
         optimizer.step()
         seeds[...] = updated.detach().cpu().numpy()
 
@@ -108,9 +108,9 @@ def run():
         recall = 1.0 * tp / max(tp + fn, 1)
         accuracy = 1.0 * (tp + tn) / (tp + tn + fp + fn)
         print('[Iter_{}:, loss: {:.4}, Precision: {:.2f}%, Recall: {:.2f}%, Accuracy: {:.2f}%]\r'.format(
-            offsets, loss.item(), precision*100, recall*100, accuracy * 100))
+            cnt, loss.item(), precision*100, recall*100, accuracy * 100))
 
-        scheduler.step()
+        # scheduler.step()
 
         """根据最佳loss并且保存模型"""
         if best_loss > loss.item() or t_curr - t_last > args.interval:
