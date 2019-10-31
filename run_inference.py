@@ -26,6 +26,7 @@ def run():
 
     """载入模型"""
     model.load_state_dict(torch.load(args.model))
+    model.eval()
 
     """读取数据"""
     with h5py.File(args.data, 'r') as f:

@@ -787,14 +787,6 @@ class Canvas(object):
         images = torch.from_numpy(images).float().unsqueeze(0)
         seeds = torch.from_numpy(seeds).float().unsqueeze(0)
 
-        slice = seeds[:, seeds.shape[2] // 2, :, :].sigmoid()
-        seeds[:, seeds.shape[2] // 2, :, :] = slice
-
-        # input_data = torch.cat([images, seeds], dim=1)
-        # input_data = Variable(input_data.cuda())
-        #
-        # logits = self.model(input_data)
-        # updated = (seeds.cuda() + logits).detach().cpu().numpy()
         updated = self.executor.predict(self._exec_client_id, seeds, images)
 
         prob = expit(updated)

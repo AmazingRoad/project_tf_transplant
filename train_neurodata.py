@@ -18,7 +18,7 @@ parser = argparse.ArgumentParser(description='Train a network.')
 parser.add_argument('--deterministic', action='store_true',
     help='Run in fully deterministic mode (at the cost of execution speed).')
 parser.add_argument('-d', '--data', type=str, default='./data.h5', help='training data')
-parser.add_argument('-b', '--batch_size', type=int, default=4, help='training batch size')
+parser.add_argument('-b', '--batch_size', type=int, default=16, help='training batch size')
 parser.add_argument('--lr', type=float, default=1e-3, help='training learning rate')
 parser.add_argument('--gamma', type=float, default=0.9, help='multiplicative factor of learning rate decay')
 parser.add_argument('--step', type=int, default=1e3, help='adjust learning rate every step')
@@ -76,9 +76,6 @@ def run():
 
         t_curr = time.time()
         """正样本权重"""
-        # pos_w = - torch.log(1e-3 + (labels > 0.5).sum().float() / np.prod(labels.shape))
-        slice = sigmoid(seeds[:, :, seeds.shape[2] // 2, :, :])
-        seeds[:, :, seeds.shape[2] // 2, :, :] = slice
         labels = labels.cuda()
 
         torch_seed = torch.from_numpy(seeds)
