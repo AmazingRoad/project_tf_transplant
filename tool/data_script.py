@@ -5,8 +5,8 @@ import numpy as np
 import tifffile
 
 parser = argparse.ArgumentParser('script to generate training data')
-parser.add_argument('--image', type=str, default='./google_raw-1.tif', help='image data path')
-parser.add_argument('--label', type=str, default='./google_groundtruth-1.tif', help='label data path')
+parser.add_argument('--image', type=str, default='./raw5_expand3.tif', help='image data path')
+parser.add_argument('--label', type=str, default='./label_with_int64.tif', help='label data path')
 parser.add_argument('--save', type=str, default='data.h5', help='save file name')
 parser.add_argument('--shape', type=list, default=[49, 49, 49], help='seed shape')
 parser.add_argument('--thr', type=list, default=[0.025, 0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])

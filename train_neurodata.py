@@ -17,7 +17,7 @@ from core.data import BatchCreator
 parser = argparse.ArgumentParser(description='Train a network.')
 parser.add_argument('--deterministic', action='store_true',
     help='Run in fully deterministic mode (at the cost of execution speed).')
-parser.add_argument('-d', '--data', type=str, default='./data.h5', help='training data')
+parser.add_argument('-d', '--data', type=str, default='./google_train_data_49_49_49_.h5', help='training data')
 parser.add_argument('-b', '--batch_size', type=int, default=16, help='training batch size')
 parser.add_argument('--lr', type=float, default=1e-3, help='training learning rate')
 parser.add_argument('--gamma', type=float, default=0.9, help='multiplicative factor of learning rate decay')
@@ -57,7 +57,7 @@ def run():
     train_dataset = BatchCreator(input_h5data, args.input_size, delta=args.delta, train=True)
     train_loader = DataLoader(train_dataset, shuffle=True, num_workers=0, pin_memory=True)
 
-    optimizer = optim.SGD(model.parameters(), lr=args.lr)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
     # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.step, gamma=args.gamma, last_epoch=-1)
 
     best_loss = np.inf

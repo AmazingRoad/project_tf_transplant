@@ -138,27 +138,27 @@ def center_crop_and_pad(data, coor, target_shape):
     selector = [slice(s, e) for s, e in zip(start, end)]
     cropped = data[tuple(selector)]
 
-    if target_shape is not None:
-
-        if len(cropped.shape) > 3:
-            target_shape = np.array(target_shape)
-            delta = target_shape - cropped.shape[:-1]
-            pre = delta // 2
-            post = delta - delta // 2
-
-            paddings = []  # no padding for batch
-            paddings.extend(zip(pre, post))
-            paddings.append((0, 0))
-            cropped = np.pad(cropped, paddings, mode='constant')
-        else:
-            target_shape = np.array(target_shape)
-            delta = target_shape - cropped.shape
-            pre = delta // 2
-            post = delta - delta // 2
-
-            paddings = []  # no padding for batch
-            paddings.extend(zip(pre, post))
-            cropped = np.pad(cropped, paddings, mode='constant')
+    # if target_shape is not None:
+    #
+    #     if len(cropped.shape) > 3:
+    #         target_shape = np.array(target_shape)
+    #         delta = target_shape - cropped.shape[:-1]
+    #         pre = delta // 2
+    #         post = delta - delta // 2
+    #
+    #         paddings = []  # no padding for batch
+    #         paddings.extend(zip(pre, post))
+    #         paddings.append((0, 0))
+    #         cropped = np.pad(cropped, paddings, mode='constant')
+    #     else:
+    #         target_shape = np.array(target_shape)
+    #         delta = target_shape - cropped.shape
+    #         pre = delta // 2
+    #         post = delta - delta // 2
+    #
+    #         paddings = []  # no padding for batch
+    #         paddings.extend(zip(pre, post))
+    #         cropped = np.pad(cropped, paddings, mode='constant')
 
     return cropped
 
@@ -675,6 +675,7 @@ class Canvas(object):
 
         self._exec_client_id = None
         self.segmentation = np.zeros(self.shape, dtype=np.int32)
+        self.id_mask = np.zeros(self.shape, dtype=np.int32)
         self.seed = np.zeros(self.shape, dtype=np.float32)
         self.seg_prob = np.zeros(self.shape, dtype=np.uint8)
         self.target_dic = {}
@@ -907,10 +908,10 @@ class Canvas(object):
                     continue
 
                 """根据seed内容计算最后的分割图"""
-                id_mask = np.zeros(self.shape, dtype=np.int32)
+                self.id_mask *= 0
                 sel = [slice(max(s, 0), e + 1) for s, e in zip(self._min_pos - self.input_size // 2, self._max_pos + self.input_size // 2)]
                 mask = self.seed[tuple(sel)] >= self.seg_thr
-                id_mask[tuple(sel)][mask] = self.max_id + 1
+                self.id_mask[tuple(sel)][mask] = self.max_id + 1
                 raw_segmented_voxels = np.sum(mask)
                 overlapped_ids, counts = np.unique(self.segmentation[tuple(sel)][mask], return_counts=True)
                 valid = overlapped_ids > 0
@@ -932,7 +933,7 @@ class Canvas(object):
                 self.seg_prob[tuple(sel)][mask] = quantize_probability(expit(self.seed[tuple(sel)][mask]))
                 self.overlaps[self.max_id] = np.array([overlapped_ids, counts])
                 self.origins[self.max_id] = OriginInfo(pos, num_iters, t_seg)
-                self.target_dic[self.max_id] = id_mask
+                self.target_dic[self.max_id] = self.id_mask
 
         except RuntimeError:
             return True
