@@ -17,6 +17,7 @@ import os
 import executor
 import tempfile
 import shutil
+import cv2
 
 
 np.seterr(divide='ignore',invalid='ignore')
@@ -138,27 +139,27 @@ def center_crop_and_pad(data, coor, target_shape):
     selector = [slice(s, e) for s, e in zip(start, end)]
     cropped = data[tuple(selector)]
 
-    # if target_shape is not None:
-    #
-    #     if len(cropped.shape) > 3:
-    #         target_shape = np.array(target_shape)
-    #         delta = target_shape - cropped.shape[:-1]
-    #         pre = delta // 2
-    #         post = delta - delta // 2
-    #
-    #         paddings = []  # no padding for batch
-    #         paddings.extend(zip(pre, post))
-    #         paddings.append((0, 0))
-    #         cropped = np.pad(cropped, paddings, mode='constant')
-    #     else:
-    #         target_shape = np.array(target_shape)
-    #         delta = target_shape - cropped.shape
-    #         pre = delta // 2
-    #         post = delta - delta // 2
-    #
-    #         paddings = []  # no padding for batch
-    #         paddings.extend(zip(pre, post))
-    #         cropped = np.pad(cropped, paddings, mode='constant')
+    if target_shape is not None:
+
+        if len(cropped.shape) > 3:
+            target_shape = np.array(target_shape)
+            delta = target_shape - cropped.shape[:-1]
+            pre = delta // 2
+            post = delta - delta // 2
+
+            paddings = []  # no padding for batch
+            paddings.extend(zip(pre, post))
+            paddings.append((0, 0))
+            cropped = np.pad(cropped, paddings, mode='constant')
+        else:
+            target_shape = np.array(target_shape)
+            delta = target_shape - cropped.shape
+            pre = delta // 2
+            post = delta - delta // 2
+
+            paddings = []  # no padding for batch
+            paddings.extend(zip(pre, post))
+            cropped = np.pad(cropped, paddings, mode='constant')
 
     return cropped
 
@@ -168,7 +169,7 @@ def crop_and_pad(data, offset, crop_shape, target_shape=None):
     # Spatial dimensions only. All vars in zyx.
     shape = np.array(data.shape[1:])
     crop_shape = np.array(crop_shape)
-    offset = np.array(offset)
+    offset = np.array(offset[::-1])
 
     start = shape // 2 - crop_shape // 2 + offset
     end = start + crop_shape
@@ -200,7 +201,7 @@ def get_example(loader, shape, get_offsets):
         seed = seed.numpy().copy()
         for off in get_offsets(seed):
             predicted = crop_and_pad(seed, off, shape)[np.newaxis, ...]
-            patches = crop_and_pad(image, off, shape).unsqueeze(0)
+            patches = crop_and_pad(image.squeeze(), off, shape).unsqueeze(0)
             labels = crop_and_pad(targets, off, shape).unsqueeze(0)
             offset = off
             assert predicted.base is seed
@@ -419,8 +420,8 @@ class PolicyPeaks(BaseSeedPolicy):
         logging.info('peaks: starting')
 
         # Edge detection.
-        # gray = np.array([cv2.cvtColor(im, cv2.COLOR_BGR2GRAY) for im in self.canvas.images])
-        gray = self.canvas.images
+        gray = np.array([cv2.cvtColor(im, cv2.COLOR_BGR2GRAY) for im in self.canvas.images])
+        # gray = self.canvas.images
         edges = ndimage.generic_gradient_magnitude(
             gray.astype(np.float32),
             ndimage.sobel)
@@ -449,7 +450,7 @@ class PolicyPeaks(BaseSeedPolicy):
         np.random.seed(42)
         idxs = skimage.feature.peak_local_max(
             dt + np.random.random(dt.shape) * 1e-4,
-            indices=True, min_distance=3, threshold_abs=0, threshold_rel=0)
+            indices=True, min_distance=2, threshold_abs=0, threshold_rel=0)
         np.random.set_state(state)
 
         # After skimage upgrade to 0.13.0 peak_local_max returns peaks in
@@ -666,7 +667,7 @@ class Canvas(object):
     def __init__(self, model, images, size, delta, seg_thr, mov_thr, act_thr):
         self.model = model
         self.images = images
-        self.shape = images.shape
+        self.shape = images.shape[:-1]
         self.input_size = np.array(size)
         self.margin = np.array(size) // 2
         self.seg_thr = logit(seg_thr)
@@ -781,7 +782,7 @@ class Canvas(object):
         assert np.all(start >= 0)
 
         # selector = [slice(s, e) for s, e in zip(start, end)]
-        images = self.images[start[0]:end[0], start[1]:end[1], start[2]:end[2]]
+        images = self.images[start[0]:end[0], start[1]:end[1], start[2]:end[2], :].transpose(3, 0, 1, 2)
         seeds = self.seed[start[0]:end[0], start[1]:end[1], start[2]:end[2]].copy()
         init_prediction = np.isnan(seeds)
         seeds[init_prediction] = np.float32(logit(0.05))

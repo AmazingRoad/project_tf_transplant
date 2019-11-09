@@ -17,14 +17,14 @@ from core.data import BatchCreator
 parser = argparse.ArgumentParser(description='Train a network.')
 parser.add_argument('--deterministic', action='store_true',
     help='Run in fully deterministic mode (at the cost of execution speed).')
-parser.add_argument('-d', '--data', type=str, default='./google_train_data_49_49_49_.h5', help='training data')
+parser.add_argument('-d', '--data', type=str, default='./data_raw3_focus_250_filter1_top_area64.h5', help='training data')
 parser.add_argument('-b', '--batch_size', type=int, default=16, help='training batch size')
 parser.add_argument('--lr', type=float, default=1e-3, help='training learning rate')
 parser.add_argument('--gamma', type=float, default=0.9, help='multiplicative factor of learning rate decay')
 parser.add_argument('--step', type=int, default=1e3, help='adjust learning rate every step')
 parser.add_argument('--depth', type=int, default=12, help='depth of ffn')
-parser.add_argument('--delta', default=(8, 8, 8), help='delta offset')
-parser.add_argument('--input_size', default=(33, 33, 33), help='input size')
+parser.add_argument('--delta', default=(12, 12, 12), help='delta offset')
+parser.add_argument('--input_size', default=(55, 55, 55), help='input size')
 parser.add_argument('--clip_grad_thr', type=float, default=0.7, help='grad clip threshold')
 parser.add_argument('--save_path', type=str, default='./model', help='model save path')
 parser.add_argument('--resume', type=str, default=None, help='resume training')
@@ -45,7 +45,7 @@ if not os.path.exists(args.save_path):
 
 def run():
     """创建模型"""
-    model = FFN(in_channels=2, out_channels=1, input_size=args.input_size, delta=args.delta, depth=args.depth).cuda()
+    model = FFN(in_channels=4, out_channels=1, input_size=args.input_size, delta=args.delta, depth=args.depth).cuda()
 
     if args.resume is not None:
         model.load_state_dict(torch.load(args.resume))

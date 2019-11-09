@@ -5,12 +5,12 @@ from core.models.ffn import FFN
 from core.data.utils import *
 
 parser = argparse.ArgumentParser(description='inference script')
-parser.add_argument('--data', type=str, default='./data.h5', help='input images')
+parser.add_argument('--data', type=str, default='./data_raw3_focus_250_filter1_top_area64.h5', help='input images')
 parser.add_argument('--label', type=str, default='./pred.h5', help='input images')
 parser.add_argument('--model', type=str, default='./model/ffn.pth', help='path to ffn model')
-parser.add_argument('--delta', default=(8, 8, 8), help='delta offset')
-parser.add_argument('--input_size', default=(33, 33, 33), help='input size')
-parser.add_argument('--depth', type=int, default=12, help='depth of ffn')
+parser.add_argument('--delta', default=(12, 12, 12), help='delta offset')
+parser.add_argument('--input_size', default=(55, 55, 55), help='input size')
+parser.add_argument('--depth', type=int, default=22, help='depth of ffn')
 parser.add_argument('--seg_thr', type=float, default=0.6, help='input size')
 parser.add_argument('--mov_thr', type=float, default=0.9, help='input size')
 parser.add_argument('--act_thr', type=float, default=0.95, help='input size')
@@ -20,7 +20,7 @@ args = parser.parse_args()
 
 def run():
     """创建模型"""
-    model = FFN(in_channels=2, out_channels=1, input_size=args.input_size, delta=args.delta, depth=args.depth).cuda()
+    model = FFN(in_channels=4, out_channels=1, input_size=args.input_size, delta=args.delta, depth=args.depth).cuda()
 
     assert os.path.isfile(args.model)
 
@@ -46,9 +46,9 @@ def run():
     id, count = np.unique(canva.segmentation, return_counts=True)
     with h5py.File('pred.h5', 'w') as g:
         g.create_dataset('label', data=canva.segmentation, compression='gzip')
-    with h5py.File('pred_all.h5', 'w') as g:
-        for idx in range(len(canva.target_dic)):
-            g.create_dataset('label_{}'.format(idx+1), data=canva.target_dic[idx+1], compression='gzip')
+    # with h5py.File('pred_all.h5', 'w') as g:
+    #     for idx in range(len(canva.target_dic)):
+    #         g.create_dataset('label_{}'.format(idx+1), data=canva.target_dic[idx+1], compression='gzip')
     print("id:{}, count:{}".format(id, count))
 
 

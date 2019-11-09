@@ -6,16 +6,20 @@ import torch.nn.functional as F
 
 
 class ResBlock(nn.Module):
-    def __init__(self, in_channels=32, mid_channels=32, kernel_size=(3, 3, 3), padding=1):
+    def __init__(self, in_channels=32, mid_channels=32, out_channels=32, kernel_size=(3, 3, 3), padding=1):
         super(ResBlock, self).__init__()
         self.conv0 = nn.Conv3d(in_channels, mid_channels, kernel_size, padding=padding)
-        self.conv1 = nn.Conv3d(in_channels, mid_channels, kernel_size, padding=padding)
+        self.bn0 = nn.BatchNorm3d(mid_channels)
+        self.conv1 = nn.Conv3d(mid_channels, out_channels, kernel_size, padding=padding)
+        self.bn1 = nn.BatchNorm3d(out_channels)
 
     def forward(self, x):
-        conv0_out = self.conv0(F.relu(x))
-        conv1_out = self.conv1(F.relu(conv0_out))
+        conv0_out = self.conv0(F.relu(x, inplace=True))
+        bn0_out = self.bn0(conv0_out)
+        conv1_out = self.conv1(F.relu(bn0_out, inplace=True))
+        bn1_out = self.bn1(conv1_out)
 
-        return conv1_out + x
+        return bn1_out + x
 
 
 class FFN(nn.Module):
@@ -24,8 +28,10 @@ class FFN(nn.Module):
         super(FFN, self).__init__()
 
         self.conv0 = nn.Conv3d(in_channels, mid_channels, kernel_size, padding=padding)
+        self.bn0 = nn.BatchNorm3d(mid_channels)
         self.conv1 = nn.Conv3d(mid_channels, mid_channels, kernel_size, padding=padding)
-        self.resblocks = nn.Sequential(*[ResBlock(mid_channels, mid_channels, kernel_size, padding) for i in range(1, depth)])
+        self.bn1 = nn.BatchNorm3d(mid_channels)
+        self.resblocks = nn.Sequential(*[ResBlock(mid_channels, mid_channels, mid_channels, kernel_size, padding) for i in range(1, depth)])
         self.conv3 = nn.Conv3d(mid_channels, out_channels, (1, 1, 1))
 
         self.input_size = np.array(input_size)
@@ -36,9 +42,11 @@ class FFN(nn.Module):
 
     def forward(self, x):
         conv0_out = self.conv0(x)
-        conv1_out = self.conv1(F.relu(conv0_out))
-        res_out = self.resblocks(conv1_out)
-        logits = self.conv3(F.relu(res_out))
+        bn0_out = self.bn0(conv0_out)
+        conv1_out = self.conv1(F.relu(bn0_out, inplace=True))
+        bn1_out = self.bn1(conv1_out)
+        res_out = self.resblocks(bn1_out)
+        logits = self.conv3(F.relu(res_out, inplace=True))
 
         return logits
 

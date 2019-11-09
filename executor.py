@@ -114,7 +114,7 @@ class ThreadingBatchExecutor(BatchExecutor):
         # Arrays fed to TF.
         self.input_seed = np.zeros([batch_size] + [1] + self._input_seed_size,
                                    dtype=np.float32)
-        self.input_image = np.zeros([batch_size] + [1] + self._input_image_size,
+        self.input_image = np.zeros([batch_size] + [3] + self._input_image_size,
                                     dtype=np.float32)
         self.th_executor = None
 
