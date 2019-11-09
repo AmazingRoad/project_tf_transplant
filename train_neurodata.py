@@ -22,7 +22,7 @@ parser.add_argument('-b', '--batch_size', type=int, default=16, help='training b
 parser.add_argument('--lr', type=float, default=1e-3, help='training learning rate')
 parser.add_argument('--gamma', type=float, default=0.9, help='multiplicative factor of learning rate decay')
 parser.add_argument('--step', type=int, default=1e3, help='adjust learning rate every step')
-parser.add_argument('--depth', type=int, default=20, help='depth of ffn')
+parser.add_argument('--depth', type=int, default=16, help='depth of ffn')
 parser.add_argument('--delta', default=(12, 12, 12), help='delta offset')
 parser.add_argument('--input_size', default=(51, 51, 51), help='input size')
 parser.add_argument('--clip_grad_thr', type=float, default=0.7, help='grad clip threshold')
