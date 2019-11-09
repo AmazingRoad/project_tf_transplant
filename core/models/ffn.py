@@ -31,7 +31,7 @@ class FFN(nn.Module):
         self.bn0 = nn.BatchNorm3d(mid_channels)
         self.conv1 = nn.Conv3d(mid_channels, mid_channels, kernel_size, padding=padding)
         self.bn1 = nn.BatchNorm3d(mid_channels)
-        self.resblocks = nn.Sequential(*[ResBlock(mid_channels, mid_channels, kernel_size, padding) for i in range(1, depth)])
+        self.resblocks = nn.Sequential(*[ResBlock(mid_channels, mid_channels, mid_channels, kernel_size, padding) for i in range(1, depth)])
         self.conv3 = nn.Conv3d(mid_channels, out_channels, (1, 1, 1))
 
         self.input_size = np.array(input_size)
