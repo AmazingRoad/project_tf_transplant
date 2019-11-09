@@ -10,7 +10,7 @@ parser.add_argument('--label', type=str, default='./pred.h5', help='input images
 parser.add_argument('--model', type=str, default='./model/ffn.pth', help='path to ffn model')
 parser.add_argument('--delta', default=(12, 12, 12), help='delta offset')
 parser.add_argument('--input_size', default=(51, 51, 51), help='input size')
-parser.add_argument('--depth', type=int, default=22, help='depth of ffn')
+parser.add_argument('--depth', type=int, default=20, help='depth of ffn')
 parser.add_argument('--seg_thr', type=float, default=0.6, help='input size')
 parser.add_argument('--mov_thr', type=float, default=0.9, help='input size')
 parser.add_argument('--act_thr', type=float, default=0.95, help='input size')
