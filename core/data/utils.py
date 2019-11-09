@@ -138,28 +138,6 @@ def center_crop_and_pad(data, coor, target_shape):
     selector = [slice(s, e) for s, e in zip(start, end)]
     cropped = data[tuple(selector)]
 
-    # if target_shape is not None:
-    #
-    #     if len(cropped.shape) > 3:
-    #         target_shape = np.array(target_shape)
-    #         delta = target_shape - cropped.shape[:-1]
-    #         pre = delta // 2
-    #         post = delta - delta // 2
-    #
-    #         paddings = []  # no padding for batch
-    #         paddings.extend(zip(pre, post))
-    #         paddings.append((0, 0))
-    #         cropped = np.pad(cropped, paddings, mode='constant')
-    #     else:
-    #         target_shape = np.array(target_shape)
-    #         delta = target_shape - cropped.shape
-    #         pre = delta // 2
-    #         post = delta - delta // 2
-    #
-    #         paddings = []  # no padding for batch
-    #         paddings.extend(zip(pre, post))
-    #         cropped = np.pad(cropped, paddings, mode='constant')
-
     return cropped
 
 

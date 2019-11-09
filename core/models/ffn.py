@@ -6,14 +6,16 @@ import torch.nn.functional as F
 
 
 class ResBlock(nn.Module):
-    def __init__(self, in_channels=32, mid_channels=32, kernel_size=(3, 3, 3), padding=1):
+    def __init__(self, in_channels=32, mid_channels=32, out_channels=32, kernel_size=(3, 3, 3), padding=1):
         super(ResBlock, self).__init__()
         self.conv0 = nn.Conv3d(in_channels, mid_channels, kernel_size, padding=padding)
-        self.conv1 = nn.Conv3d(in_channels, mid_channels, kernel_size, padding=padding)
+        self.bn = nn.BatchNorm3d(mid_channels)
+        self.conv1 = nn.Conv3d(mid_channels, out_channels, kernel_size, padding=padding)
 
     def forward(self, x):
         conv0_out = self.conv0(F.relu(x))
-        conv1_out = self.conv1(F.relu(conv0_out))
+        bn_out = self.bn(conv0_out)
+        conv1_out = self.conv1(F.relu(bn_out))
 
         return conv1_out + x
 

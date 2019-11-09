@@ -5,7 +5,7 @@ from core.models.ffn import FFN
 from core.data.utils import *
 
 parser = argparse.ArgumentParser(description='inference script')
-parser.add_argument('--data', type=str, default='./data.h5', help='input images')
+parser.add_argument('--data', type=str, default='./google_train_data_49_49_49_.h5', help='input images')
 parser.add_argument('--label', type=str, default='./pred.h5', help='input images')
 parser.add_argument('--model', type=str, default='./model/ffn.pth', help='path to ffn model')
 parser.add_argument('--delta', default=(8, 8, 8), help='delta offset')

@@ -1,10 +1,9 @@
 import h5py
 import argparse
-import argparse
 
 parser = argparse.ArgumentParser(description='analysis tool')
 parser.add_argument('--pred', type=str, default='./pred.h5', help='predict segmentation mask')
-parser.add_argument('--gt', type=str, default='./data.h5', help='ground truth label')
+parser.add_argument('--gt', type=str, default='./google_train_data_49_49_49_.h5', help='ground truth label')
 
 args = parser.parse_args()
 
