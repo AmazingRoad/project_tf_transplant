@@ -4,7 +4,7 @@ from scipy import stats
 import argparse
 
 parser = argparse.ArgumentParser(description='script to evaluate id recall')
-parser.add_argument('--gt', type=str, default='./data_raw3_focus_250_filter1_top_area64.h5', help='ground truth data')
+parser.add_argument('--gt', type=str, default='./data_raw4_focus_500_filter1.5.h5', help='ground truth data')
 parser.add_argument('--pred', type=str, default='./pred.h5', help='prediction h5 file')
 
 args = parser.parse_args()

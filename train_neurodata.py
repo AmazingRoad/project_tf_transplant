@@ -17,14 +17,14 @@ from core.data import BatchCreator
 parser = argparse.ArgumentParser(description='Train a network.')
 parser.add_argument('--deterministic', action='store_true',
     help='Run in fully deterministic mode (at the cost of execution speed).')
-parser.add_argument('-d', '--data', type=str, default='./data_raw3_focus_250_filter1_top_area64.h5', help='training data')
+parser.add_argument('-d', '--data', type=str, default='./data_raw4_focus_500_filter1.5.h5', help='training data')
 parser.add_argument('-b', '--batch_size', type=int, default=16, help='training batch size')
 parser.add_argument('--lr', type=float, default=1e-3, help='training learning rate')
 parser.add_argument('--gamma', type=float, default=0.9, help='multiplicative factor of learning rate decay')
 parser.add_argument('--step', type=int, default=1e3, help='adjust learning rate every step')
 parser.add_argument('--depth', type=int, default=12, help='depth of ffn')
 parser.add_argument('--delta', default=(12, 12, 12), help='delta offset')
-parser.add_argument('--input_size', default=(55, 55, 55), help='input size')
+parser.add_argument('--input_size', default=(51, 51, 51), help='input size')
 parser.add_argument('--clip_grad_thr', type=float, default=0.7, help='grad clip threshold')
 parser.add_argument('--save_path', type=str, default='./model', help='model save path')
 parser.add_argument('--resume', type=str, default=None, help='resume training')
@@ -114,7 +114,7 @@ def run():
             tp = fp = tn = fn = 0
             t_last = t_curr
             best_loss = loss.item()
-            torch.save(model.state_dict(), os.path.join(args.save_path, 'ffn.pth'))
+            torch.save(model.state_dict(), os.path.join(args.save_path, 'ffn_color.pth'))
             print('Precision: {:.2f}%, Recall: {:.2f}%, Accuracy: {:.2f}%, Model saved!'.format(
                 precision * 100, recall * 100, accuracy * 100))
 
