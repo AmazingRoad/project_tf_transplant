@@ -4,7 +4,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description='analysis tool')
 parser.add_argument('--pred', type=str, default='./pred.h5', help='predict segmentation mask')
-parser.add_argument('--gt', type=str, default='./data_raw4_focus_500_filter1.5.h5', help='ground truth label')
+parser.add_argument('--gt', type=str, default='./Data_raw3_top_250_filter1.h5', help='ground truth label')
 
 args = parser.parse_args()
 

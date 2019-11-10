@@ -934,7 +934,7 @@ class Canvas(object):
                 self.seg_prob[tuple(sel)][mask] = quantize_probability(expit(self.seed[tuple(sel)][mask]))
                 self.overlaps[self.max_id] = np.array([overlapped_ids, counts])
                 self.origins[self.max_id] = OriginInfo(pos, num_iters, t_seg)
-                self.target_dic[self.max_id] = self.id_mask
+                self.target_dic[self.max_id] = self.id_mask.copy()
 
         except RuntimeError:
             return True
